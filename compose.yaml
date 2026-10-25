@@ -7,7 +7,7 @@ services:
     init: true
     user: "1000:1000"
     ports:
-      - "127.0.0.1:8787:8787"
+      - "${BIND_IP:?Set BIND_IP to an existing server IP}:8787:8787"
     environment:
       APP_PASSWORD: ${APP_PASSWORD:?Run setup.sh first}
       DATA_DIR: /data

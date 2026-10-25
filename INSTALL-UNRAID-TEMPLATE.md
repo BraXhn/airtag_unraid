@@ -30,7 +30,9 @@ Gå till **Docker → Add Container**. Välj **airtag-map** i listan **Template*
 | --- | --- |
 | Name | `airtag-map` |
 | Repository | `ghcr.io/braxhn/airtag_unraid:latest` |
-| Network Type | `bridge` |
+| Network Type | `Custom: br0`, eller ditt eget Custom-nätverk |
+| Fixed IP address | Den lediga IP-adress du vill ge containern |
+| WebUI port | `8787` |
 | Privileged | Av |
 | Appdata: Host Path | `/mnt/user/appdata/airtag-map` |
 | Appdata: Container Path | `/data` |
@@ -43,20 +45,20 @@ Spara applösenordet i din lösenordshanterare. **Skriv inte ditt Apple-lösenor
 I Advanced View finns **Extra Parameters**:
 
 ```text
---publish=127.0.0.1:8787:8787 --user=1000:1000 --read-only --tmpfs=/tmp:rw,noexec,nosuid,size=128m --cap-drop=ALL --security-opt=no-new-privileges:true --init --restart=unless-stopped
+--user=1000:1000 --read-only --tmpfs=/tmp:rw,noexec,nosuid,size=128m --cap-drop=ALL --security-opt=no-new-privileges:true --init --restart=unless-stopped
 ```
 
-Portmappningen ligger här för att binda porten till serverns loopback-adress. Lägg inte till en separat Port-rad för 8787. Klicka **Apply** och sedan **Done** när skapandet lyckats.
+Den hårdkodade localhost-mappningen är borttagen. Med ett Custom-nätverk använder appen **containerns egen valda IP-adress** och port **8787** direkt. Port-raden finns för WebUI-information; värdportmappning används inte på detta nätverk.
+
+Ange **Fixed IP address** till en ledig adress i samma subnät som det Custom-nätverk du valt. Använd inte Unraid-serverns egen IP eller en adress som redan används. Välj gärna en adress utanför routerns DHCP-pool eller reservera den där. Om `Custom: br0` saknas, välj det Custom-nätverk du redan har konfigurerat för dina containrar.
+
+Klicka **Apply** och sedan **Done** när skapandet lyckats.
 
 ## 4. Öppna appen
 
-På din egen dator, öppna PowerShell eller Terminal:
+Välj **WebUI** för containern, eller öppna `http://DIN-VALDA-IP:8787` i webbläsaren. Ingen SSH-tunnel behövs.
 
-```sh
-ssh -N -L 8787:127.0.0.1:8787 root@DIN-UNRAID-IP
-```
-
-Ersätt `DIN-UNRAID-IP`, ange Unraid-lösenordet och låt fönstret vara öppet. SSH måste vara tillgängligt på servern. Öppna sedan [http://localhost:8787](http://localhost:8787) på samma dator. WebUI-länken förutsätter att tunneln redan är igång. En HTTPS-reverse-proxy är ett alternativ för den som redan har en sådan konfigurerad.
+Använd ett betrott nätverk. HTTP krypterar inte lösenord; för krypterad åtkomst använder du HTTPS via en reverse-proxy.
 
 Logga in med användarnamnet `admin` och **applösenordet du valde i templaten**. Inne i appen klickar du **Anslut Apple-konto** och följer dialogen. När exporten lyckats klickar du **Hämta positioner**. Två separata Apple-inloggningar kan behövas. Tvåfaktorskod och en tidigare enhets skärmlåskod kan krävas och kan inte kringgås.
 
@@ -69,3 +71,15 @@ Unraid sparar miljövariabler, inklusive applösenordet, i sin lokala template. 
 Om du tidigare startade appen med Compose, kör `docker compose down` från den ursprungliga projektkatalogen innan du använder denna template. Kör inte båda installationerna samtidigt mot samma datakatalog.
 
 För lokal byggning som alternativ: klona repot och kör `sh prepare-unraid-template.sh`. Det bygger `airtag-map:local` och installerar en anpassad template. Använd endast en av metoderna.
+
+## Ändra en redan installerad container
+
+En ny XML-fil ändrar inte automatiskt en befintlig containers inställningar. Gå till **Docker → airtag-map → Edit**:
+
+1. Visa **Advanced View** och ta bort enbart `--publish=127.0.0.1:8787:8787` från **Extra Parameters** om den finns kvar.
+2. Välj **Network Type: Custom: br0** eller ditt eget Custom-nätverk.
+3. Ange önskad ledig adress i **Fixed IP address**.
+4. Sätt **WebUI** till `http://[IP]:[PORT:8787]/`. Om fältet inte visas kan du öppna den valda IP-adressen manuellt.
+5. Behåll appdata och applösenord. Klicka **Apply** och öppna `http://DIN-VALDA-IP:8787`.
+
+Appen lyssnar redan på `0.0.0.0:8787` inne i containern. Ändringen kräver därför ingen ny appversion för att fungera.

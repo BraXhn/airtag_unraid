@@ -22,6 +22,7 @@ Packa upp hela katalogen på servern, exempelvis `/mnt/user/appdata/airtag-map-s
 ```sh
 cd /mnt/user/appdata/airtag-map-source
 sh setup.sh
+# Lägg till BIND_IP=DIN-SERVER-IP i .env innan du startar.
 docker compose up -d --build
 ```
 
@@ -31,18 +32,13 @@ Rust-bygget kan ta lång tid första gången. Det hämtar källkod från de angi
 
 ## Öppna appen
 
-Standardkonfigurationen binder endast till serverns loopback-adress. Från en dator med SSH-klient och behörig SSH-åtkomst till Unraid:
+Med Unraid-templaten väljer du **Network Type: Custom: br0** (eller ditt eget Custom-nätverk) och anger önskad ledig adress i **Fixed IP address**. Öppna sedan `http://DIN-VALDA-IP:8787` eller välj WebUI på containern. Ingen SSH-tunnel behövs.
 
-```sh
-ssh -N -L 8787:127.0.0.1:8787 root@DIN-UNRAID-IP
-```
+Logga in med `admin` och det separata applösenord du angav i templaten. Apple-inloggningen anges först inne i appen.
 
-Öppna sedan `http://localhost:8787` på samma dator. Webbläsarens inloggningsruta använder:
+Om du använder Compose-metoden anger du även `BIND_IP=DIN-SERVER-IP` i `.env` före `docker compose up`. Det måste vara en IP som redan finns på servern. Compose binder värdporten till den adressen; det skapar inte en egen container-IP som Unraids Custom-nätverk gör. Lösenordet för Compose finns efter `APP_PASSWORD=` i `.env`.
 
-- Användarnamn: `admin`
-- Lösenord: värdet efter `APP_PASSWORD=` i serverns `.env`
-
-Detta är appens eget åtkomstskydd. Apple-kontot anges i nästa steg inne i appen. Alternativt kan du använda en HTTPS-reverse-proxy på servern. Exponera inte appens okrypterade HTTP-port på internet eller ditt nätverk; HTTP Basic och Apple-svar måste skyddas av SSH eller TLS. SSH behöver endast vara tillgängligt på ditt betrodda nätverk.
+Använd ett betrott nätverk och HTTPS via din reverse-proxy om du behöver kryptera anslutningen. HTTP krypterar inte inloggningsuppgifterna.
 
 ## Hämta föremål och positioner
 
