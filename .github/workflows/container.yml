@@ -46,6 +46,14 @@ jobs:
           --tag "$IMAGE:$GITHUB_SHA" .
       - name: Check exporter binary
         run: docker run --rm "$IMAGE:$GITHUB_SHA" export-findmy --help
+      - name: Prepare and initialize emulated CoreADI without an Apple account
+        run: |
+          docker run --rm --read-only \
+            --tmpfs /tmp:rw,noexec,nosuid,size=128m \
+            --tmpfs /data:rw,uid=1000,gid=1000,mode=0700,size=2g \
+            -e APP_PASSWORD=ci-pass-1234 \
+            "$IMAGE:$GITHUB_SHA" python -c \
+            'import mac_worker; mac_worker.ensure_library(); mac_worker.load_modules(); from adi_run import CoreADI; adi=CoreADI(); assert adi.initialize().ok; assert adi.is_machine_provisioned(-2).ret == -45061; print("Offline CoreADI initialization passed; no machine provisioned and no Apple login attempted")'
       - name: Start application without an Apple account
         run: |
           docker run -d --name airtag-smoke --read-only \
