@@ -15,7 +15,7 @@
   <PostArgs/>
   <Config Name="WebUI port" Target="8787" Default="8787" Mode="tcp" Description="WebUI listens on port 8787. On a Custom network, connect to the container Fixed IP address directly on port 8787." Type="Port" Display="always" Required="true" Mask="false">8787</Config>
   <Config Name="Appdata" Target="/data" Default="/mnt/user/appdata/airtag-map" Mode="rw" Description="Persistent Apple sessions, accessory keys and last locations. Protect this directory and backups." Type="Path" Display="always" Required="true" Mask="false">/mnt/user/appdata/airtag-map</Config>
-  <Config Name="App password" Target="APP_PASSWORD" Default="" Mode="" Description="App login password, not your Apple password. Username: admin. Choose a separate random password of at least 24 characters." Type="Variable" Display="always" Required="true" Mask="true"></Config>
+  <Config Name="App password" Target="APP_PASSWORD" Default="" Mode="" Description="App login password, not your Apple password. Username: admin. Choose a separate random password of at least 12 characters." Type="Variable" Display="always" Required="true" Mask="true"></Config>
   <Config Name="Data directory inside container" Target="DATA_DIR" Default="/data" Mode="" Description="Keep /data unless also changing the path mapping." Type="Variable" Display="advanced" Required="true" Mask="false">/data</Config>
   <Config Name="Anisette v3 server" Target="ANISETTE_URL" Default="https://ani.sidestore.io" Mode="" Description="Third-party authentication metadata service used by the exporter." Type="Variable" Display="advanced" Required="true" Mask="false">https://ani.sidestore.io</Config>
 </Container>
