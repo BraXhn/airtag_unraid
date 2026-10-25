@@ -39,13 +39,26 @@ def encode_packet(location, codec):
     if codec not in ('8', '8E'):
         raise ValueError('Välj Codec 8 eller 8E')
     timestamp, lon, lat = position(location)
-    # AirTags do not supply altitude, course, satellites or speed. Zero means
-    # unavailable for this bridge; receivers must not require a GPS satellite fix.
-    record = struct.pack('>QBiiHHBH', timestamp, 0, lon, lat, 0, 0, 0, 0)
+    # AirTags do not report satellite counts. Three is a compatibility value
+    # for Sibek's minimum-fix filter, not a measured GPS satellite count.
+    record = struct.pack('>QBiiHHBH', timestamp, 0, lon, lat, 0, 0, 3, 0)
     # Event ID, total IO, N1/N2/N4/N8; Extended adds NX and uses uint16 fields.
     record += bytes(6 if codec == '8' else 14)
     data = bytes([0x08 if codec == '8' else 0x8E, 1]) + record + b'\x01'
     return bytes(4) + struct.pack('>I', len(data)) + data + struct.pack('>I', crc16(data))
+
+
+def _with_satellites(packet, count):
+    """Rewrite this bridge's single-record packet, including its CRC."""
+    data = bytearray(packet[8:-4])
+    expected = {8: 33, 142: 41}.get(data[0] if data else None)
+    if (len(data) != expected or packet[:4] != bytes(4)
+            or int.from_bytes(packet[4:8], 'big') != expected
+            or data[1] != 1 or data[-1] != 1
+            or int.from_bytes(packet[-4:], 'big') != crc16(data)):
+        raise ValueError('Ogiltigt köat Teltonika-paket')
+    data[23] = count
+    return packet[:8] + bytes(data) + struct.pack('>I', crc16(data))
 
 
 def recv_exact(sock, count):
@@ -204,7 +217,7 @@ class Bridge:
                     continue
                 imei = tag['imei']
                 fingerprint = hashlib.sha256(json.dumps([cfg['host'], cfg['port'], imei,
-                    device['identifier']]).encode() + packet).hexdigest()
+                    device['identifier']]).encode() + _with_satellites(packet, 0)).hexdigest()
                 db.execute('INSERT OR IGNORE INTO queue (fingerprint,host,port,imei,packet) VALUES (?,?,?,?,?)',
                            (fingerprint, cfg['host'], cfg['port'], imei, packet))
 
@@ -233,7 +246,10 @@ class Bridge:
         if row is None:
             return False
         try:
-            send_record(row['host'], row['port'], row['imei'], row['packet'])
+            # Upgrade pending packets too; keep their endpoint, ID and timestamp.
+            # Fingerprints retain the original zero-satellite representation so
+            # an update does not requeue already acknowledged reports.
+            send_record(row['host'], row['port'], row['imei'], _with_satellites(row['packet'], 3))
         except (OSError, Rejected, WrongAck) as error:
             message = ('Servern avvisade ID:t' if isinstance(error, Rejected) else
                        'Servern kvitterade inte en post' if isinstance(error, WrongAck) else

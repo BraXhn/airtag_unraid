@@ -58,7 +58,7 @@ AVL-posten innehåller följande:
 | Latitud | 4 | Signerat heltal, grader × 10 000 000 |
 | Höjd | 2 | 0, saknas |
 | Riktning | 2 | 0, saknas |
-| Satelliter | 1 | 0, saknas |
+| Satelliter | 1 | 3, kompatibilitetsvärde för Sibek; inte uppmätt |
 | Hastighet | 2 | 0, saknas |
 | IO Codec 8 | 6 | Event-ID, totalantal och N1/N2/N4/N8: alla 0, en byte per fält |
 | IO Codec 8E | 14 | Event-ID, totalantal och N1/N2/N4/N8/NX: alla 0, två byte per fält |
@@ -67,9 +67,10 @@ Enbart IO-raden för vald codec används. Datafältet är 33 byte för Codec 8
 eller 41 byte för Codec 8E. Hela TCP-paketet är 45 respektive 53 byte.
 Inga batteri-, mobilnäts- eller andra IO-värden hittas på.
 
-**Viktigt för din server:** satelliter=0 betyder här att uppgiften saknas,
-inte att koordinaterna ska kasseras. AirTagens position kommer från Apples
-nätverk, inte från en GPS-mottagare i AirTagen. Höjd/hastighet/riktning=0
+**Viktigt för din server:** satelliter=3 är ett fast kompatibilitetsvärde så att
+Sibeks filter för minst tre satelliter accepterar positionen. Det är inte ett
+uppmätt satellitantal. AirTagens position kommer från Apples nätverk, inte från
+en GPS-mottagare i AirTagen. Höjd/hastighet/riktning=0
 är också platshållare och ska inte tolkas som verkliga mätningar.
 Positionsnoggrannheten från Apple visas på kartan men skickas inte i TCP-paketet.
 
@@ -79,6 +80,10 @@ Positionsnoggrannheten från Apple visas på kartan men skickas inte i TCP-paket
 och kvitterade postfingeravtryck. Det överlever containeromstart. Kör en
 Gunicorn-worker enligt Dockerfilen; flera parallella workers stöds inte.
 Bryggan startar med webbservern och behöver ingen öppen webbläsare.
+
+Även äldre osända köposter skickas med satellitvärdet 3 och omräknad CRC efter
+uppdateringen. ID, mottagare, rapporttid och koordinater behålls. Kvitterade
+poster skickas inte om enbart på grund av det ändrade satellitvärdet.
 
 Samma ID, mottagare, codec, rapporttid och koordinater köas inte igen efter en
 upprepad hämtning. En senare rapporttid skickas även om föremålet står still.
