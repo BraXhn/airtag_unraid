@@ -48,6 +48,7 @@ def test_data_headers_and_no_invented_positions(module):
     assert response.json == {'devices': [], 'updated_at': None}
     assert response.headers['Cache-Control'] == 'no-store'
     assert response.headers['X-Frame-Options'] == 'DENY'
+    assert response.headers['Referrer-Policy'] == 'strict-origin-when-cross-origin'
     data = {'devices': [{'name': '<script>alert(1)</script>', 'location': None}], 'updated_at': '2026-10-25'}
     (module.DATA / 'locations.json').write_text(json.dumps(data))
     assert client.get('/api/locations', headers=auth()).json == data
