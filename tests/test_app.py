@@ -17,11 +17,7 @@ def module(tmp_path, monkeypatch):
     import app
     module = importlib.reload(app)
     yield module
-    module.job.stop()
-    module.auto_refresh.stop_event.set()
-    module.bridge.stop_event.set()
-    if module.bridge.thread:
-        module.bridge.thread.join(timeout=2)
+    module.workspaces.close()
 
 
 def auth():
