@@ -13,7 +13,10 @@ import shutil
 import ssl
 import subprocess
 import sys
+import threading
 import time
+from contextlib import contextmanager
+from datetime import datetime, timezone
 from pathlib import Path
 
 from worker import atomic_write, cipher
@@ -238,6 +241,81 @@ async def recover_accessories(account):
         await session.close()
 
 
+@contextmanager
+def heartbeat(label, interval=10):
+    stopped = threading.Event()
+    started = time.monotonic()
+
+    def report():
+        while not stopped.wait(interval):
+            elapsed = int(time.monotonic() - started)
+            print(f'{label}: söker fortfarande ({elapsed} s). Första nyckelsökningen kan ta flera minuter.', flush=True)
+
+    thread = threading.Thread(target=report, daemon=True)
+    thread.start()
+    try:
+        yield
+    finally:
+        stopped.set()
+        thread.join(timeout=1)
+
+
+async def fetch_positions(account, accessories):
+    previous = {}
+    path = DATA / 'locations.json'
+    if path.exists():
+        previous = {d['identifier']: d for d in json.loads(path.read_text()).get('devices', [])}
+    devices = []
+    for accessory in accessories:
+        identity = accessory.identifier or hashlib.sha256(accessory.to_json()['master_key'].encode()).hexdigest()
+        device = {'name': accessory.name or 'Hitta-föremål', 'model': accessory.model,
+                  'identifier': identity, 'location': previous.get(identity, {}).get('location'),
+                  'fetch_status': 'pending'}
+        devices.append(device)
+    completed, failures = 0, 0
+
+    def checkpoint(fetching):
+        atomic_write(path, json.dumps({'devices': devices, 'updated_at': datetime.now(timezone.utc).isoformat(),
+            'fetching': fetching, 'completed': completed, 'total': len(devices), 'failures': failures}).encode())
+        atomic_write(KEYS, cipher().encrypt(json.dumps([a.to_json() for a in accessories]).encode()))
+        save_session(account)
+        try:
+            Bridge(DATA).enqueue(devices)
+        except Exception:
+            print('Kartan sparades, men TCP-kön kunde inte uppdateras. Kontrollera appdata.', flush=True)
+
+    checkpoint(True)
+    try:
+        for number, (accessory, device) in enumerate(zip(accessories, devices), 1):
+            label = f'[{number}/{len(devices)}] {device["name"]}'
+            device['fetch_status'] = 'fetching'
+            checkpoint(True)
+            print(f'{label}: söker senaste position.', flush=True)
+            try:
+                with heartbeat(label):
+                    report = await account.fetch_location(accessory)
+                if report is not None:
+                    device['location'] = {'latitude': report.latitude, 'longitude': report.longitude,
+                                          'accuracy': report.horizontal_accuracy, 'timestamp': report.timestamp.isoformat()}
+                    device['fetch_status'] = 'ok'
+                    print(f'{label}: position hämtad.', flush=True)
+                else:
+                    device['fetch_status'] = 'no_report'
+                    print(f'{label}: ingen position rapporterad; eventuell tidigare plats behålls.', flush=True)
+            except (TimeoutError, OSError) as error:
+                # One failed connection must not discard the other tags' results.
+                failures += 1
+                device['fetch_status'] = 'error'
+                print(f'{label}: nätverksfel ({type(error).__name__}); tidigare plats behålls.', flush=True)
+            completed += 1
+            checkpoint(True)
+    finally:
+        # Cancellation still leaves already received positions and alignment saved.
+        checkpoint(False)
+    print(f'Klart. {completed} av {len(devices)} föremål kontrollerade; {failures} nätverksfel.', flush=True)
+    return 1 if failures else 0
+
+
 async def run():
     from findmy import AsyncAppleAccount, FindMyAccessory, LoginState
     cooldown, MacAnisette, Provider, Resyncer = load_modules()
@@ -254,28 +332,7 @@ async def run():
             print('Inga exporterbara Hitta-föremål hittades i den dekrypterade nyckelringen.', flush=True)
             return 2
         print(f'Hämtar positioner för {len(accessories)} föremål.', flush=True)
-        reports = await account.fetch_location(accessories)
-        devices = []
-        for accessory in accessories:
-            report = reports.get(accessory)
-            # A stable fallback is needed for imports without an upstream identifier.
-            identity = accessory.identifier or hashlib.sha256(accessory.to_json()['master_key'].encode()).hexdigest()
-            device = {'name': accessory.name or 'Hitta-föremål', 'model': accessory.model,
-                      'identifier': identity, 'location': None}
-            if report is not None:
-                device['location'] = {'latitude': report.latitude, 'longitude': report.longitude,
-                                      'accuracy': report.horizontal_accuracy, 'timestamp': report.timestamp.isoformat()}
-            devices.append(device)
-        from datetime import datetime, timezone
-        atomic_write(DATA / 'locations.json', json.dumps({'devices': devices, 'updated_at': datetime.now(timezone.utc).isoformat()}).encode())
-        atomic_write(KEYS, cipher().encrypt(json.dumps([a.to_json() for a in accessories]).encode()))
-        save_session(account)
-        try:
-            Bridge(DATA).enqueue(devices)
-        except Exception:
-            print('Kartan sparades, men TCP-kön kunde inte uppdateras. Kontrollera appdata.', flush=True)
-        print(f'Klart. {sum(d["location"] is not None for d in devices)} av {len(devices)} föremål har position.', flush=True)
-        return 0
+        return await fetch_positions(account, accessories)
     finally:
         if account is not None:
             await account.close()

@@ -40,6 +40,21 @@ en viss användares inloggning. Se [upstreams resultat](https://github.com/malme
    Därefter använder **Hämta positioner** den sparade sessionen och nycklarna.
    **Ny positionsinloggning** loggar in igen på samma sparade maskin.
 
+Första positionssökningen kan ta flera minuter per föremål när biblioteket
+behöver hitta rätt rullande nyckelindex. Appen visar nu `[1/16] Föremålsnamn`
+och en statusrad var tionde sekund under sökningen. En sådan rad visar att
+processen fortfarande körs, inte hur mycket av sökningen som återstår.
+Varje färdigt föremål sparas separat, syns på kartan och köas till TCP om den
+funktionen är aktiverad. Ett enskilt nätverksfel kastar inte bort de andra
+föremålens resultat. Tidigare positioner behålls med sin ursprungliga tid
+när en ny rapport saknas eller hämtningen misslyckas. Nästa hämtning använder
+sparade nycklar och den nyckeljustering som redan hunnit göras.
+
+Jobbet har fortfarande en total gräns på 15 minuter. En statusrad är ingen
+garanti för att Apple kommer att lämna en position. Vid avbrott behålls redan
+sparade resultat; välj **Hämta positioner** för att försöka igen utan att
+återställa föremålsnycklarna på nytt.
+
 Ingen nyckelringsmedlem ansluts av den nya återställningsvägen. Den läser
 återställningsbara poster och föremålsnycklar. Den tar inte bort enheter,
 byter inte lösenord och accepterar inte iCloud-villkor åt dig. Om Apple kräver
