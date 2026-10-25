@@ -13,23 +13,25 @@ async function api(path,body){
 }
 function fit(){if(pins.getLayers().length)map.fitBounds(pins.getBounds(),{padding:[40,40],maxZoom:15});}
 function render(data){
-  if(data.updated_at===lastUpdate)return;
-  lastUpdate=data.updated_at; pins.clearLayers();$('devices').replaceChildren();
+  const renderKey=data.updated_at+':'+wasRunning;
+  if(renderKey===lastUpdate)return;
+  lastUpdate=renderKey; pins.clearLayers();$('devices').replaceChildren();
   $('count').textContent=data.devices.length;
-  $('updated').textContent=data.updated_at?'Hämtat '+date(data.updated_at):'Ingen hämtning ännu';
+  $('updated').textContent=data.fetching&&wasRunning?'Hämtar positioner · '+data.completed+'/'+data.total+' klara':data.completed<data.total?'Hämtningen avslutades · '+data.completed+'/'+data.total+' klara':data.updated_at?'Uppdaterat '+date(data.updated_at):'Ingen hämtning ännu';
   data.devices.forEach((d,i)=>{
     const card=document.createElement('button');card.className='device';
     const title=document.createElement('strong');title.textContent=d.name;card.append(title);
     const info=document.createElement('small');card.append(info);
     const p=d.location;
+    const fetchStatus=!wasRunning&&['fetching','pending'].includes(d.fetch_status)?'interrupted':d.fetch_status;
     if(p && Number.isFinite(p.latitude) && Number.isFinite(p.longitude)){
-      info.textContent=date(p.timestamp)+' · ± '+p.accuracy+' m';
+      info.textContent=date(p.timestamp)+' · ± '+p.accuracy+' m'+(fetchStatus==='fetching'?' · Söker ny position':fetchStatus==='pending'?' · Väntar på hämtning':fetchStatus==='error'?' · Hämtning misslyckades':fetchStatus==='no_report'?' · Ingen ny rapport':fetchStatus==='interrupted'?' · Ej färdighämtad':'');
       if(Date.now()-Date.parse(p.timestamp)>3600000)info.className='old';
       const label=document.createElement('div');label.textContent=d.name+' · '+date(p.timestamp);
       const marker=L.marker([p.latitude,p.longitude],{icon:L.divIcon({className:'pin',html:String(i+1),iconSize:[30,30]})}).bindPopup(label).addTo(pins);
       L.circle([p.latitude,p.longitude],{radius:Math.max(0,p.accuracy||0),weight:1,color:'#2e694b',fillOpacity:.08}).addTo(pins);
       card.onclick=()=>{map.setView([p.latitude,p.longitude],15);marker.openPopup();};
-    }else{info.textContent='Ingen position rapporterad';card.disabled=true;}
+    }else{info.textContent=fetchStatus==='fetching'?'Söker position…':fetchStatus==='pending'?'Väntar på hämtning':fetchStatus==='error'?'Hämtning misslyckades':fetchStatus==='interrupted'?'Ej färdighämtad':'Ingen position rapporterad';card.disabled=true;}
     $('devices').append(card);
   });fit();
 }
