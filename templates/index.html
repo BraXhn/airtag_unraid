@@ -4,16 +4,27 @@
 <script defer src="/static/leaflet.js"></script><script defer src="/static/app.js"></script></head>
 <body><header><span class="brand">◎</span><div><small>DIN PRIVATA ÖVERSIKT</small><h1>Mina föremål</h1></div><span id="status">Inte ansluten</span></header>
 <main><aside><h2>Anslut ditt Apple-konto</h2><p>Hämta dina föremål och visa deras senast rapporterade plats.</p>
-<div class="step"><b>1</b><div><h3>Hämta föremål</h3><p>Linux-inloggning utan Mac. Första gången hämtas ett Apple-bibliotek; därefter loggar du in och låser upp föremålsnycklar med en tidigare enhets skärmlåskod. Följ dialogen nedan.</p><button data-action="export">Anslut Apple-konto</button></div></div>
+<div class="step"><b>1</b><div><h3>Hämta föremål</h3><p>Linux-inloggning utan Mac. Första gången hämtas ett Apple-bibliotek; därefter loggar du in och låser upp föremålsnycklar med en tidigare enhets skärmlåskod. Följ dialogen nedan och välj sedan vilka föremål som ska hämtas.</p><button data-action="export">Anslut Apple-konto</button></div></div>
+<details open><summary>Välj föremål att hämta</summary><p>Urvalet används vid både manuell och automatisk sökning. Spara före nästa sökning. En redan startad körning fortsätter med sitt tidigare urval.</p>
+<form id="device-selection"><label><input type="checkbox" id="select-all"> Alla föremål, även nytillkomna</label><div id="selection-devices"></div><button id="selection-save">Spara urval</button></form>
+<p id="selection-status" aria-live="polite"></p><p id="selection-error" role="alert"></p></details>
 <div class="step"><b>2</b><div><h3>Visa positioner</h3><p>Använder den sparade Linux-sessionen. Välj Ny positionsinloggning om Apple kräver ny verifiering.</p><button data-action="locations">Hämta positioner</button></div></div>
+
 <details><summary>Om inloggningen behöver förnyas</summary><button data-action="relogin">Ny positionsinloggning</button><p>Apple-kontot måste vara samma konto som i steg 1.</p></details>
 <p class="note">Experimentell, inofficiell integration. Tvåfaktorskod och en tidigare enhets skärmlåskod kan behövas. Appen kan inte ersätta dessa verifieringar.</p>
+<h2>Automatisk positionssökning</h2>
+<form id="auto-refresh"><label for="auto-interval">Sökintervall</label><select id="auto-interval">
+<option value="0">Av – endast manuellt</option><option value="5">Var 5:e minut</option><option value="15">Var 15:e minut</option><option value="30">Var 30:e minut</option><option value="60">Varje timme</option><option value="180">Var 3:e timme</option><option value="360">Var 6:e timme</option><option value="720">Var 12:e timme</option><option value="1440">En gång per dygn</option>
+</select><button id="auto-save">Spara intervall</button></form>
+<p>Intervallet räknas från avslutad sökning. Körs i containern även när webbläsaren är stängd. Logga in och hämta föremålen manuellt först.</p>
+<p id="auto-status" aria-live="polite"></p><p id="auto-error" role="alert"></p>
+<details><summary>Hur länge håller Apple-inloggningen?</summary><p>Ingen fast giltighetstid är verifierad för denna inofficiella Linux-integration. Sessionen sparas och återanvänds tills Apple kräver ny verifiering; ett visst antal timmar eller dagar kan inte lovas. Automatiken pausas när en ny inloggning behövs.</p><p id="session-age">Ingen uppgift om senaste inloggning ännu.</p><p>En session överlever normalt en containeromstart när appdata och applösenordet behålls, men Apple kan ändå avvisa den. Byt inte applösenord för att förnya Apple-sessionen; använd Ny positionsinloggning.</p></details>
 <h2>Föremål <span id="count">0</span></h2><div id="devices"><p>Inga positioner hämtade ännu.</p></div></aside>
 <section class="workspace"><div class="mapbar"><div><h2>Senast kända platser</h2><small id="updated">Ingen hämtning ännu</small></div><button id="fit">Visa alla</button></div><div id="map" aria-label="Karta över föremål"></div>
 <section class="dialog"><div class="dialoghead"><h2>Inloggningsdialog</h2><button id="stop">Avbryt</button></div><p>Besvara den sista frågan. Alla svar döljs. Tryck Skicka med tomt fält för att välja ett föreslaget standardvärde.</p><pre id="output" aria-live="polite">Starta med Anslut Apple-konto.</pre>
 <form id="answer"><label for="value">Svar till den aktuella frågan</label><div class="inputrow"><input id="value" type="password" autocomplete="off" maxlength="1024" placeholder="Ditt svar"><button>Skicka</button></div></form><p id="error" role="alert"></p></section>
 <section class="dialog"><h2>Skicka positioner till egen server</h2>
-<p>Välj Teltonika Codec 8 eller 8E över TCP. Varje föremål får ett virtuellt ID som ska registreras i din server. Nya positioner skickas efter Hämta positioner; Apple hämtas inte automatiskt.</p>
+<p>Välj Teltonika Codec 8 eller 8E över TCP. Varje föremål får ett virtuellt ID som ska registreras i din server. Nya positioner skickas efter manuell eller aktiverad automatisk positionssökning.</p>
 <form id="forwarding"><label><input type="checkbox" id="forward-enabled"> Aktivera TCP-vidarebefordran</label>
 <div class="forward-fields"><label>Serveradress<input id="forward-host" maxlength="253" placeholder="192.168.1.50" autocomplete="off"></label>
 <label>TCP-port<input id="forward-port" type="number" min="1" max="65535" value="5027" required></label>
