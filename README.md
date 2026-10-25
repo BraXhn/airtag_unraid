@@ -58,7 +58,7 @@ Det här är en vy över exporterbara Hitta-föremål. Den ersätter inte Apples
 - `/mnt/user/appdata/airtag-map` innehåller AirTag-nycklar, betrodd nyckelringsidentitet, återanvändbara autentiseringstoken och senast hämtade positioner. Exportverktygets cache och nyckelfiler lagras **inte krypterat av denna app**, men katalog/filer har begränsade Unix-behörigheter. Skydda även Unraid-administratörsåtkomst och säkerhetskopior.
 - Python-klientens sparade session krypteras med en nyckel härledd från det slumpmässiga `APP_PASSWORD`. Upstream-sessionen kan innehålla lösenord eller andra återanvändbara inloggningsuppgifter; kryptering innebär inte att dessa saknas. Den som har både `.env` och datakatalogen kan dekryptera sessionen. Ett byte av `APP_PASSWORD` gör den gamla sessionen oläsbar; använd då **Ny positionsinloggning**.
 - Exportören använder normalt Anisette-tjänsten `https://ani.sidestore.io`. Det är en tredjepartstjänst för autentiseringsmetadata. Ange en egen kompatibel v3-tjänst via `ANISETTE_URL` i `.env` om du har en. Python-klienten använder sin lokala Anisette-generator, som hämtar nödvändiga bibliotek första gången.
-- Webbläsaren hämtar kartbilder från OpenStreetMap. Kartleverantören får webbläsarens IP och efterfrågade kartområden. Kontolösenord och AirTag-nycklar skickas inte till kartleverantören av appen.
+- Webbläsaren hämtar kartbilder från OpenStreetMap. Kartleverantören får webbläsarens IP, efterfrågade kartområden och appens ursprung (protokoll, värdnamn/IP och port) som HTTP Referer enligt karttjänstens krav. Sökväg och frågeparametrar skickas inte till kartleverantören. Kontolösenord och AirTag-nycklar skickas inte till kartleverantören av appen.
 - En process kan köras åt gången. Dialogen avslutas efter högst 15 minuter. Kör endast en Gunicorn-worker; tillståndet för dialogen ligger i den processen.
 
 ## Felsökning
@@ -71,7 +71,7 @@ docker compose logs --tail=60
 - Om Docker-bygget misslyckas är Apple-inloggning ännu inte provad. Rapportera byggfelet utan hemligheter. Inga bygg- eller Apple-fel får tolkas som att dina föremål saknas.
 - Om exporten misslyckas: kontrollera den sista frågan, verifieringsmetod och om kontot har en återställningsbar nyckelring. Ett konto utan tillgänglig verifiering kan inte räddas av appen.
 - Om positionshämtning misslyckas: kontrollera internet, försök **Ny positionsinloggning** och behåll samma Apple-konto. Den gamla kartan ligger kvar med sin gamla tidsstämpel.
-- Om kartbakgrunden saknas: kontrollera åtkomst till `tile.openstreetmap.org`. Positionsdata kan fortfarande visas i listan.
+- Om kartbakgrunden visar **Access blocked**: uppdatera till versionen som använder `Referrer-Policy: strict-origin-when-cross-origin`. Den tidigare policyn `no-referrer` uppfyllde inte OpenStreetMaps krav för webbkartor. Ladda om sidan efter uppdateringen; om den gamla felbilden är cachad kan du göra en hård omladdning en gång. En reverse-proxy eller ett integritetstillägg får inte ta bort Referer för kartanropen. Om nätverket fortfarande är blockerat är det ett kvarstående åtkomstproblem hos karttjänsten, inte ett Apple-inloggningsfel. Positionsdata kan fortfarande visas i listan.
 - Den första positionssökningen kan ta flera minuter eftersom nycklarnas tidsjustering måste beräknas. Om den når 15-minutersgränsen är detta ett integrationsproblem att undersöka, inte bevis för att föremålet är offline.
 
 ## Stoppa och avinstallera
