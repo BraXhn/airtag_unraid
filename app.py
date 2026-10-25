@@ -213,7 +213,12 @@ def check_csrf():
         if request.headers.get('X-Requested-With') != 'AirTagMap':
             abort(403)
         origin = request.headers.get('Origin')
-        if origin and origin.rstrip('/') != request.host_url.rstrip('/'):
+        allowed = {request.host_url.rstrip('/')}
+        if request.scheme == 'http':
+            # HTTPS may terminate at Cloudflare/reverse proxy. Keep the exact
+            # authority check without trusting arbitrary forwarded headers.
+            allowed.add('https://' + request.host)
+        if origin and origin.rstrip('/') not in allowed:
             abort(403)
 
 

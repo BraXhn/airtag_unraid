@@ -129,9 +129,11 @@ class Accounts:
                                         hashlib.sha256(self.admin_password.encode()).digest())
             return self.get('admin') if valid else None
         with self.db() as db:
-            row = db.execute('SELECT id,password_hash,enabled FROM users WHERE username=?', (username,)).fetchone()
+            row = db.execute('SELECT id,password_hash,enabled,version FROM users WHERE username=?', (username,)).fetchone()
         valid = check_password_hash(row['password_hash'] if row else self.dummy_hash, password)
-        return self.get(row['id']) if valid and row and row['enabled'] else None
+        user = self.get(row['id']) if valid and row and row['enabled'] else None
+        # A reset/pause racing the slow password hash must revoke this attempt too.
+        return user if user and user['enabled'] and user['version'] == row['version'] else None
 
     def login(self, username, password, address):
         """Bounded, per source/name retry limiter; never store supplied passwords."""
