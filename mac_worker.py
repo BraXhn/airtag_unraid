@@ -117,6 +117,9 @@ def install_protocol(account, resyncer, cooldown):
 
     async def transport(method, url, **kwargs):
         cooldown.guard()
+        # The library can opt into transport retries for some endpoints. Keep
+        # 429 visible immediately so no internal retry defeats the cooldown.
+        kwargs['auto_retry'] = False
         response = await send(method, url, **kwargs)
         if response.status_code == 429:
             cooldown.note_429()
@@ -256,7 +259,7 @@ async def run():
         for accessory in accessories:
             report = reports.get(accessory)
             # A stable fallback is needed for imports without an upstream identifier.
-            identity = accessory.identifier or hashlib.sha256(json.dumps(accessory.to_json(), sort_keys=True).encode()).hexdigest()
+            identity = accessory.identifier or hashlib.sha256(accessory.to_json()['master_key'].encode()).hexdigest()
             device = {'name': accessory.name or 'Hitta-föremål', 'model': accessory.model,
                       'identifier': identity, 'location': None}
             if report is not None:
