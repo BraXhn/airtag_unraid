@@ -2,8 +2,14 @@
 <html lang="sv"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Mina föremål · AirTag-karta</title><link rel="stylesheet" href="/static/leaflet.css"><link rel="stylesheet" href="/static/app.css">
 <script defer src="/static/leaflet.js"></script><script defer src="/static/app.js"></script></head>
-<body><header><span class="brand">◎</span><div><small>DIN PRIVATA ÖVERSIKT</small><h1>Mina föremål</h1></div><span id="status">Inte ansluten</span></header>
-<main><aside><h2>Anslut ditt Apple-konto</h2><p>Hämta dina föremål och visa deras senast rapporterade plats.</p>
+<body><header><span class="brand">◎</span><div><small>DIN PRIVATA ÖVERSIKT</small><h1>Mina föremål</h1></div><span id="status">Inte ansluten</span><span class="account-name">{{ g.user.username }}</span><button id="logout">Logga ut</button></header>
+<main><aside>
+{% if g.user.is_admin %}<details id="account-admin"><summary>Hantera användarkonton</summary>
+<p>Varje konto ansluter sitt eget Apple-konto och har en egen karta, sökschema och TCP-inställningar.</p>
+<form id="create-account"><label for="new-username">Nytt användarnamn</label><input id="new-username" autocomplete="off" minlength="3" maxlength="40" pattern="[a-z][a-z0-9_.\-]{2,39}" required>
+<label for="new-password">Lösenord (minst 12 tecken)</label><input id="new-password" type="password" autocomplete="new-password" minlength="12" maxlength="256" required><button id="create-account-button">Skapa konto</button></form>
+<p id="account-message" role="status"></p><div id="accounts-list"></div></details>{% endif %}
+<h2>Anslut ditt Apple-konto</h2><p>Hämta dina föremål och visa deras senast rapporterade plats. Enheter och inställningar tillhör ditt inloggade appkonto.</p>
 <div class="step"><b>1</b><div><h3>Hämta föremål</h3><p>Linux-inloggning utan Mac. Första gången hämtas ett Apple-bibliotek; därefter loggar du in och låser upp föremålsnycklar med en tidigare enhets skärmlåskod. Följ dialogen nedan och välj sedan vilka föremål som ska hämtas.</p><button data-action="export">Anslut Apple-konto</button></div></div>
 <details open><summary>Välj föremål att hämta</summary><p>Urvalet används vid både manuell och automatisk sökning. Spara före nästa sökning. En redan startad körning fortsätter med sitt tidigare urval.</p>
 <form id="device-selection"><label><input type="checkbox" id="select-all"> Alla föremål, även nytillkomna</label><div id="selection-devices"></div><button id="selection-save">Spara urval</button></form>
