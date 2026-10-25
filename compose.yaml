@@ -11,6 +11,7 @@ services:
     environment:
       APP_PASSWORD: ${APP_PASSWORD:?Run setup.sh first}
       DATA_DIR: /data
+      COOKIE_SECURE: ${COOKIE_SECURE:-0}
       ANISETTE_URL: ${ANISETTE_URL:-https://ani.sidestore.io}
     volumes:
       - /mnt/user/appdata/airtag-map:/data

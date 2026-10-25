@@ -1,6 +1,4 @@
-"""Single-user, LAN/SSH-only web wrapper for FindMy tooling."""
-import hashlib
-import hmac
+"""Private per-user web workspaces for FindMy tooling."""
 import json
 import os
 import pty
@@ -12,11 +10,13 @@ import termios
 import threading
 import time
 from pathlib import Path
+from datetime import timedelta
 
-from flask import Flask, Response, abort, jsonify, render_template, request
+from flask import Flask, abort, g, jsonify, render_template, request, session
 from teltonika import Bridge
 from scheduler import AutoRefresh
 from device_selection import DeviceSelection
+from accounts import Accounts
 
 os.umask(0o077)
 DATA = Path(os.environ.get('DATA_DIR', '/data'))
@@ -27,11 +27,19 @@ if len(PASSWORD) < 12:
 ROOT = Path(__file__).resolve().parent
 app = Flask(__name__)
 app.config['MAX_CONTENT_LENGTH'] = 262144
-bridge = Bridge(DATA)
+accounts = Accounts(DATA, PASSWORD)
+app.secret_key = accounts.session_key
+app.config.update(SESSION_COOKIE_HTTPONLY=True, SESSION_COOKIE_SAMESITE="Strict",
+                  SESSION_COOKIE_SECURE=os.environ.get("COOKIE_SECURE") == "1",
+                  SESSION_REFRESH_EACH_REQUEST=False,
+                  PERMANENT_SESSION_LIFETIME=timedelta(hours=12))
 
 
 class Job:
-    def __init__(self):
+    def __init__(self, data=None, password=None):
+        self.data = Path(data) if data is not None else DATA
+        self.password = password if password is not None else PASSWORD
+        self.closed = False
         self.lock = threading.RLock()
         self.proc = None
         self.fd = None
@@ -57,17 +65,18 @@ class Job:
 
     def start(self, argv):
         with self.lock:
-            if self.fd is not None:
+            if self.closed or self.fd is not None:
                 return False
             master, slave = pty.openpty()
             attrs = termios.tcgetattr(slave)
             attrs[3] &= ~(termios.ECHO | termios.ECHONL)
             termios.tcsetattr(slave, termios.TCSANOW, attrs)
             self.output, self.secrets, self.code = '', [], None
-            env = dict(os.environ, PYTHONUNBUFFERED='1', RUST_LOG='off', TERM='dumb')
+            env = dict(os.environ, PYTHONUNBUFFERED='1', RUST_LOG='off', TERM='dumb',
+                       DATA_DIR=str(self.data), APP_PASSWORD=self.password)
             try:
                 self.proc = subprocess.Popen(argv, stdin=slave, stdout=slave, stderr=slave,
-                                             cwd=DATA, env=env, start_new_session=True)
+                                             cwd=self.data, env=env, start_new_session=True)
             except Exception:
                 os.close(master)
                 raise
@@ -124,30 +133,194 @@ class Job:
                 os.killpg(self.proc.pid, signal.SIGTERM)
 
 
-job = Job()
-auto_refresh = AutoRefresh(DATA, job, [sys.executable, str(ROOT / 'mac_worker.py'), '--non-interactive'])
-device_selection = DeviceSelection(DATA)
+class Workspace:
+    def __init__(self, user):
+        self.data = accounts.directory(user)
+        self.job = Job(self.data, accounts.data_password(user))
+        self.bridge = Bridge(self.data)
+        self.auto_refresh = AutoRefresh(self.data, self.job,
+            [sys.executable, str(ROOT / 'mac_worker.py'), '--non-interactive'])
+        self.device_selection = DeviceSelection(self.data, accounts.data_password(user))
+
+    def start(self):
+        self.bridge.start()
+        self.auto_refresh.start()
+
+    def close(self):
+        self.auto_refresh.stop_event.set()
+        self.bridge.stop_event.set()
+        with self.job.lock:
+            self.job.closed = True
+            self.job.stop()
+        if self.job.proc is not None:
+            try:
+                self.job.proc.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                os.killpg(self.job.proc.pid, signal.SIGKILL)
+        for thread in (self.auto_refresh.thread, self.bridge.thread):
+            if thread:
+                thread.join(timeout=2)
 
 
-@app.before_request
-def protect():
-    if request.path == '/healthz':
-        return None
-    auth = request.authorization
-    valid = auth and hmac.compare_digest(auth.username or '', 'admin') and hmac.compare_digest(
-        hashlib.sha256((auth.password or '').encode()).digest(),
-        hashlib.sha256(PASSWORD.encode()).digest())
-    if not valid:
-        return Response('Logga in med admin och ditt applösenord.', 401,
-                        {'WWW-Authenticate': 'Basic realm="AirTag-karta", charset="UTF-8"'})
-    if request.method != 'GET':
-        # Custom header blocks cross-origin form posts; CORS is never enabled.
+class Workspaces:
+    def __init__(self):
+        self.lock = threading.RLock()
+        self.items = {}
+        self.running = False
+
+    def get(self, user):
+        with self.lock:
+            current = accounts.get(user['id'])
+            if not current or not current['enabled']:
+                raise PermissionError('Kontot är pausat')
+            if user['id'] not in self.items:
+                self.items[user['id']] = Workspace(user)
+            result = self.items[user['id']]
+            if self.running:
+                result.start()
+            return result
+
+    def start(self):
+        with self.lock:
+            self.running = True
+            for user in [accounts.get('admin'), *accounts.list()]:
+                if user['enabled']:
+                    self.get(user)
+
+    def pause(self, uid):
+        with self.lock:
+            item = self.items.pop(uid, None)
+            if item:
+                item.close()
+
+    def close(self):
+        with self.lock:
+            self.running = False
+            for item in self.items.values():
+                item.close()
+            self.items.clear()
+
+
+workspaces = Workspaces()
+admin_workspace = workspaces.get(accounts.get('admin'))
+# Retain these aliases for existing integrations/tests; requests always use g.workspace.
+job, bridge = admin_workspace.job, admin_workspace.bridge
+auto_refresh, device_selection = admin_workspace.auto_refresh, admin_workspace.device_selection
+
+
+def check_csrf():
+    if request.method not in ('GET', 'HEAD', 'OPTIONS'):
         if request.headers.get('X-Requested-With') != 'AirTagMap':
             abort(403)
         origin = request.headers.get('Origin')
         if origin and origin.rstrip('/') != request.host_url.rstrip('/'):
             abort(403)
-    bridge.start()
+
+
+def public_user(user):
+    return {key: user[key] for key in ('id', 'username', 'is_admin', 'enabled')}
+
+
+@app.before_request
+def protect():
+    if request.path == '/healthz' or request.path in ('/login', '/static/login.js', '/static/app.css'):
+        return None
+    if request.path == '/api/login':
+        check_csrf()
+        return None
+    user = accounts.get(session.get('user_id')) if session.get('user_id') else None
+    if not user or not user['enabled'] or user['version'] != session.get('version'):
+        user = None
+    # Existing Basic-auth clients continue working. A browser logout explicitly
+    # blocks cached Basic credentials until the next successful form login.
+    if not user and not session.get('user_id') and not session.get('basic_blocked') and request.authorization:
+        auth = request.authorization
+        user, limited = accounts.login(auth.username, auth.password, request.remote_addr)
+        if limited:
+            return {'error': 'För många inloggningsförsök. Vänta fem minuter.'}, 429
+    if user is None:
+        if request.path == '/':
+            return render_template('login.html'), 401
+        return {'error': 'Logga in för att fortsätta'}, 401
+    check_csrf()
+    g.user = user
+    try:
+        g.workspace = workspaces.get(user)
+    except PermissionError:
+        return {'error': 'Kontot är pausat'}, 401
+    g.workspace.bridge.start()
+
+
+@app.get('/login')
+def login_page():
+    return render_template('login.html')
+
+
+@app.post('/api/login')
+def login():
+    value = request.get_json(silent=True)
+    if not isinstance(value, dict):
+        return {'error': 'Ange användarnamn och lösenord'}, 400
+    user, limited = accounts.login(value.get('username'), value.get('password'), request.remote_addr)
+    if limited:
+        return {'error': 'För många inloggningsförsök. Vänta fem minuter.'}, 429
+    if user is None:
+        return {'error': 'Fel användarnamn eller lösenord, eller pausat konto'}, 401
+    session.clear()
+    session.permanent = True
+    session.update(user_id=user['id'], version=user['version'])
+    return {'user': public_user(user)}
+
+
+@app.post('/api/logout')
+def logout():
+    session.clear()
+    session['basic_blocked'] = True
+    return {'ok': True}
+
+
+@app.get('/api/me')
+def me():
+    return public_user(g.user)
+
+
+@app.get('/api/admin/users')
+def list_users():
+    if not g.user['is_admin']:
+        abort(403)
+    return {'users': accounts.list()}
+
+
+@app.post('/api/admin/users')
+def create_user():
+    if not g.user['is_admin']:
+        abort(403)
+    value = request.get_json(silent=True)
+    if not isinstance(value, dict):
+        return {'error': 'Ange användarnamn och lösenord'}, 400
+    try:
+        user = accounts.create(value.get('username'), value.get('password'))
+        if workspaces.running:
+            workspaces.get(user)
+    except ValueError as error:
+        return {'error': str(error)}, 400
+    return {'user': public_user(user)}, 201
+
+
+@app.post('/api/admin/users/<uid>')
+def update_user(uid):
+    if not g.user['is_admin']:
+        abort(403)
+    try:
+        with workspaces.lock:
+            user = accounts.update(uid, request.get_json(silent=True))
+            if not user['enabled']:
+                workspaces.pause(user['id'])
+            elif workspaces.running:
+                workspaces.get(user)
+    except ValueError as error:
+        return {'error': str(error)}, 400
+    return {'user': public_user(user)}
 
 
 @app.after_request
@@ -177,9 +350,9 @@ def index():
 
 @app.get('/api/state')
 def state():
-    result = job.state()
-    result['has_keys'] = (DATA / 'mac-accessories.enc').exists() or any((DATA / 'export' / 'keys').glob('*.json'))
-    result['has_session'] = (DATA / 'mac-session.enc').exists() or (DATA / 'session.enc').exists()
+    result = g.workspace.job.state()
+    result['has_keys'] = (g.workspace.data / 'mac-accessories.enc').exists() or any((g.workspace.data / 'export' / 'keys').glob('*.json'))
+    result['has_session'] = (g.workspace.data / 'mac-session.enc').exists() or (g.workspace.data / 'session.enc').exists()
     return result
 
 
@@ -193,7 +366,7 @@ def start():
         elif action == 'relogin':
             argv.append('--relogin')
     elif action == 'export':
-        folder = DATA / 'export'
+        folder = g.workspace.data / 'export'
         folder.mkdir(exist_ok=True)
         profile = folder / 'device-profile.toml'
         if not profile.exists():
@@ -210,7 +383,7 @@ def start():
     else:
         return {'error': 'Okänd åtgärd'}, 400
     try:
-        if not job.start(argv):
+        if not g.workspace.job.start(argv):
             return {'error': 'En åtgärd körs redan'}, 409
     except OSError:
         return {'error': 'Verktyget kunde inte startas. Kontrollera Docker-bygget.'}, 503
@@ -223,7 +396,7 @@ def answer():
     if not isinstance(value, str) or len(value) > 1024 or any(ord(c) < 32 for c in value):
         return {'error': 'Ogiltigt svar'}, 400
     try:
-        job.send(value)
+        g.workspace.job.send(value)
     except (ValueError, OSError):
         return {'error': 'Dialogen är inte aktiv'}, 409
     return {'ok': True}
@@ -231,14 +404,14 @@ def answer():
 
 @app.post('/api/stop')
 def stop():
-    auto_refresh.defer()
-    job.stop()
+    g.workspace.auto_refresh.defer()
+    g.workspace.job.stop()
     return {'ok': True}
 
 
 @app.get('/api/locations')
 def locations():
-    path = DATA / 'locations.json'
+    path = g.workspace.data / 'locations.json'
     if not path.exists():
         return {'devices': [], 'updated_at': None}
     return jsonify(json.loads(path.read_text()))
@@ -246,15 +419,15 @@ def locations():
 
 @app.get('/api/forwarding')
 def forwarding():
-    bridge.reconcile()
-    return {'config': bridge.config(), 'status': bridge.status()}
+    g.workspace.bridge.reconcile()
+    return {'config': g.workspace.bridge.config(), 'status': g.workspace.bridge.status()}
 
 
 @app.post('/api/forwarding')
 def save_forwarding():
     try:
-        bridge.save_config(request.get_json(silent=True))
-        bridge.reconcile()
+        g.workspace.bridge.save_config(request.get_json(silent=True))
+        g.workspace.bridge.reconcile()
     except ValueError as error:
         return {'error': str(error)}, 400
     return {'ok': True}
@@ -262,13 +435,13 @@ def save_forwarding():
 
 @app.get('/api/auto-refresh')
 def refresh_state():
-    return auto_refresh.state()
+    return g.workspace.auto_refresh.state()
 
 
 @app.post('/api/auto-refresh')
 def save_refresh():
     try:
-        auto_refresh.save(request.get_json(silent=True))
+        g.workspace.auto_refresh.save(request.get_json(silent=True))
     except ValueError as error:
         return {'error': str(error)}, 400
     return {'ok': True}
@@ -277,7 +450,7 @@ def save_refresh():
 @app.get('/api/device-selection')
 def selection_state():
     try:
-        return device_selection.state()
+        return g.workspace.device_selection.state()
     except Exception:
         return {'all_devices': True, 'identifiers': [], 'devices': [],
                 'error': 'Föremålslistan kunde inte läsas. Anslut Apple-kontot i appen igen.'}
@@ -286,8 +459,8 @@ def selection_state():
 @app.post('/api/device-selection')
 def save_selection():
     try:
-        device_selection.save(request.get_json(silent=True))
-        auto_refresh.devices_changed()
+        g.workspace.device_selection.save(request.get_json(silent=True))
+        g.workspace.auto_refresh.devices_changed()
     except ValueError as error:
         return {'error': str(error)}, 400
     except Exception:

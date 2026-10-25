@@ -1,5 +1,10 @@
 # AirTag-karta för Unraid
 
+**Egna användarkonton:** admin kan skapa, pausa och återställa lokala appkonton.
+Varje användare ansluter sitt eget Apple-konto och har egna enheter, karta,
+sökschema och TCP-inställningar. Befintliga admin-data behålls. Se
+[ACCOUNTS.md](ACCOUNTS.md) för inloggning, kontohantering och backup.
+
 **Installera via Unraids Docker-formulär:** följ [installationsguiden](INSTALL-UNRAID-TEMPLATE.md). Den använder `ghcr.io/braxhn/airtag_unraid:latest` och kräver inte Docker Compose. [GitHub Actions](https://github.com/BraXhn/airtag_unraid/actions) bygger och kontrollerar imagen. Compose-metoden nedan är ett separat alternativ; använd endast en metod för samma datakatalog.
 
 Experimentell webbapp i en Linux-container för dina egna AirTags och kompatibla Hitta-föremål. Den kombinerar export av tillbehörsnycklar från iCloud med hämtning av krypterade positionsrapporter. Kartan visar senast rapporterad position och tidsstämpel. Inga exempelpositioner används.

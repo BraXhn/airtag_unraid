@@ -62,7 +62,15 @@ Använd ett betrott nätverk. HTTP krypterar inte lösenord; för krypterad åtk
 
 Logga in med användarnamnet `admin` och **applösenordet du valde i templaten**. Inne i appen klickar du **Anslut Apple-konto** och följer dialogen. När exporten lyckats klickar du **Hämta positioner**. Standardmetoden använder nu Linux-emulering utan fysisk Mac; första gången behövs minst 1 GB ledigt appdata för förberedelse av Apple-biblioteket. Se [APPLE-LINUX.md](APPLE-LINUX.md) för SMS, sparad session och felsökning. Tvåfaktorskod och en tidigare enhets skärmlåskod kan krävas och kan inte kringgås.
 
-## Begränsningar
+## Skapa användarkonton
+
+Logga in som **admin** och öppna **Hantera användarkonton**. Skapa ett konto med
+ett unikt användarnamn och minst 12 tecken i lösenordet. Den användaren loggar
+sedan in på samma appadress och ansluter sitt eget Apple-konto. Enheter, karta,
+sökintervall och TCP-köer hålls åtskilda mellan konton. Se [ACCOUNTS.md](ACCOUNTS.md).
+Vid åtkomst enbart via HTTPS: lägg till variabeln `COOKIE_SECURE=1` i Unraid.
+
+## Begränsningar och drift
 
 Actions testar byggbarhet och start utan Apple-konto. Det bekräftar inte att ditt Apple-konto kan användas eller att alla dina föremål kan hämtas. Integrationen är inofficiell och kan sluta fungera när Apple ändrar sina tjänster. Se README.md för datalagring och felsökning.
 

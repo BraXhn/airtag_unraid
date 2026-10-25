@@ -11,9 +11,10 @@ def accessory_id(value):
 
 
 class DeviceSelection:
-    def __init__(self, data):
+    def __init__(self, data, password=None):
         self.data = Path(data)
         self.path = self.data / 'device-selection.json'
+        self.password = password
 
     def read(self):
         return json.loads(self.path.read_text()) if self.path.exists() else {'all_devices': True, 'identifiers': []}
@@ -22,7 +23,7 @@ class DeviceSelection:
         path = self.data / 'mac-accessories.enc'
         if not path.exists():
             return []
-        values = json.loads(cipher().decrypt(path.read_bytes()))
+        values = json.loads(cipher(self.password).decrypt(path.read_bytes()))
         # Never return the accessory mappings: they contain private keys.
         return [{'identifier': accessory_id(value), 'name': value.get('name') or 'Hitta-föremål',
                  'model': value.get('model')} for value in values]

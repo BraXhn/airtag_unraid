@@ -7,3 +7,4 @@ data
 .git
 .github
 .venv
+pytest-of-root

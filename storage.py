@@ -13,6 +13,6 @@ def atomic_write(path, content):
     tmp.replace(path)
 
 
-def cipher():
-    key = hashlib.sha256(('airtag-session-v1:' + os.environ['APP_PASSWORD']).encode()).digest()
+def cipher(password=None):
+    key = hashlib.sha256(('airtag-session-v1:' + (password if password is not None else os.environ['APP_PASSWORD'])).encode()).digest()
     return Fernet(base64.urlsafe_b64encode(key))
