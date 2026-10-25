@@ -238,3 +238,27 @@ def test_secure_cookie_option(module):
     module.app.config['SESSION_COOKIE_SECURE']=True
     response=login(module.app.test_client(),'admin',ADMIN_PASSWORD)
     assert 'Secure;' in response.headers['Set-Cookie']
+
+
+def test_https_proxy_origin_keeps_exact_host_check(module):
+    client=module.app.test_client()
+    credentials={'username':'admin','password':ADMIN_PASSWORD}
+    headers={**CSRF,'Origin':'https://map.example.test'}
+    assert client.post('/api/login',base_url='http://map.example.test',headers=headers,json=credentials).status_code == 200
+    for origin in ('https://evil.test','https://map.example.test:9999','http://evil.test'):
+        assert client.post('/api/login',base_url='http://map.example.test',headers={**CSRF,'Origin':origin},json=credentials).status_code == 403
+    assert client.post('/api/login',base_url='https://map.example.test',headers={**CSRF,'Origin':'http://map.example.test'},json=credentials).status_code == 403
+
+
+@pytest.mark.parametrize('change',[{'password':'replacement-password'},{'enabled':False}])
+def test_reset_or_pause_during_password_verification_rejects_login(tmp_path, monkeypatch, change):
+    import accounts as account_module
+    store=Accounts(tmp_path,ADMIN_PASSWORD)
+    user=store.create('alice',PASSWORD)
+    original=account_module.check_password_hash
+    def racing_check(hashed,password):
+        valid=original(hashed,password)
+        store.update(user['id'],change)
+        return valid
+    monkeypatch.setattr(account_module,'check_password_hash',racing_check)
+    assert store.authenticate('alice',PASSWORD) is None
