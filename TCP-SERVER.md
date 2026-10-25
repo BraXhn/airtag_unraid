@@ -15,9 +15,13 @@ eller Codec 8 Extended (8E). Funktionen är avstängd från början.
    Du kan ändra det. Registrera samma ID i din mottagare. Detta är inte ett
    riktigt, tilldelat mobil-IMEI och finns inte på AirTagens hölje.
 5. Aktivera och spara. Även den senast sparade positionen köas vid aktivering.
-   Tryck **Hämta positioner** för nya Apple-rapporter. Appen hämtar inte Apple
-   automatiskt. Varje ny position som hämtas skickas automatiskt när bryggan
+   Tryck **Hämta positioner** för nya Apple-rapporter eller aktivera ett intervall
+   under **Automatisk positionssökning**. Varje ny position som hämtas skickas automatiskt när bryggan
    är aktiverad; föremål utan position hoppas över.
+
+**Välj föremål att hämta** styr både manuell och automatisk sökning. Tidigare
+positioner som är markerade som ej valda köas inte som nya poster. Ett nytt
+urval tar inte bort redan köade TCP-poster från tidigare hämtningar.
 
 Unraid behöver kunna nå mottagaren utgående via TCP. Ingen extra inkommande
 Docker-port behövs för bryggan. Använd en IP som är nåbar från containerns

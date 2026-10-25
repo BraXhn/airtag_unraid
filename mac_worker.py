@@ -19,7 +19,8 @@ from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
 
-from worker import atomic_write, cipher
+from storage import atomic_write, cipher
+from device_selection import DeviceSelection, accessory_id
 from teltonika import Bridge
 
 os.umask(0o077)
@@ -35,6 +36,17 @@ COREADI_SHA256 = '2eafc3c79c7f41a8afbfbeaaf23ee5dab5ad5bda55ec8e54dbc0ddf1d20ce6
 
 class UserError(RuntimeError):
     pass
+
+
+class LoginRequired(UserError):
+    pass
+
+
+def record_session_status(**changes):
+    path = DATA / 'session-status.json'
+    state = json.loads(path.read_text()) if path.exists() else {}
+    state.update(changes)
+    atomic_write(path, json.dumps(state).encode())
 
 
 def ensure_library():
@@ -134,6 +146,8 @@ def install_protocol(account, resyncer, cooldown):
 
 async def authenticate(AsyncAppleAccount, LoginState, cooldown, MacAnisette, Provider, Resyncer):
     saved = SESSION.exists() and '--relogin' not in sys.argv
+    if '--non-interactive' in sys.argv and (not saved or not (MACHINE / 'identity.json').exists()):
+        raise LoginRequired('Automatisk sökning pausad. Logga in manuellt i appen först.')
     # Ask before provisioning; never spend the machine's first login window on typing.
     email = password = None
     if not saved:
@@ -148,7 +162,7 @@ async def authenticate(AsyncAppleAccount, LoginState, cooldown, MacAnisette, Pro
     if saved:
         state_info = json.loads(cipher().decrypt(SESSION.read_bytes()))
         if state_info['ids']['devid'] != identity['device_id']:
-            raise UserError('Sessionen tillhör en annan maskin')
+            raise LoginRequired('Sessionen tillhör en annan maskin. Logga in igen i appen.')
         account = AsyncAppleAccount(provider, timeout=30, state_info=state_info)
     else:
         account = AsyncAppleAccount(provider, timeout=30, uid=identity['local_user_uuid'], devid=identity['device_id'])
@@ -158,7 +172,7 @@ async def authenticate(AsyncAppleAccount, LoginState, cooldown, MacAnisette, Pro
         install_protocol(account, resyncer, cooldown)
         if saved:
             if account.login_state != LoginState.LOGGED_IN:
-                raise UserError('Ny positionsinloggning behövs')
+                raise LoginRequired('Ny positionsinloggning behövs')
             print('Använder sparad, krypterad Linux-session.', flush=True)
             return account
         try:
@@ -198,6 +212,7 @@ async def authenticate(AsyncAppleAccount, LoginState, cooldown, MacAnisette, Pro
         if state != LoginState.LOGGED_IN:
             raise UserError('Inloggningen blev inte klar')
         save_session(account)
+        record_session_status(authenticated_at=time.time(), login_required=False)
         return account
     except BaseException:
         await account.close()
@@ -205,6 +220,8 @@ async def authenticate(AsyncAppleAccount, LoginState, cooldown, MacAnisette, Pro
 
 
 async def recover_accessories(account):
+    if '--non-interactive' in sys.argv:
+        raise LoginRequired('Föremålsnycklar saknas. Hämta föremålen manuellt i appen först.')
     from findmy.keychain.session import AsyncKeychainSession
     from findmy.cloudkit import AsyncBeaconStore
     from tag_keys import for_cloudkit
@@ -260,24 +277,32 @@ def heartbeat(label, interval=10):
         thread.join(timeout=1)
 
 
-async def fetch_positions(account, accessories):
+async def fetch_positions(account, accessories, all_accessories=None):
     previous = {}
     path = DATA / 'locations.json'
     if path.exists():
         previous = {d['identifier']: d for d in json.loads(path.read_text()).get('devices', [])}
     devices = []
     for accessory in accessories:
-        identity = accessory.identifier or hashlib.sha256(accessory.to_json()['master_key'].encode()).hexdigest()
+        identity = accessory_id(accessory.to_json())
         device = {'name': accessory.name or 'Hitta-föremål', 'model': accessory.model,
                   'identifier': identity, 'location': previous.get(identity, {}).get('location'),
-                  'fetch_status': 'pending'}
+                  'fetch_status': 'pending', 'selected': True}
         devices.append(device)
+    selected_devices = list(devices)
+    selected_ids = {d['identifier'] for d in devices}
+    for accessory in all_accessories or []:
+        identity = accessory_id(accessory.to_json())
+        if identity not in selected_ids:
+            devices.append({'identifier': identity, 'name': accessory.name or 'Hitta-föremål',
+                            'model': accessory.model, 'location': previous.get(identity, {}).get('location'),
+                            'selected': False, 'fetch_status': 'not_selected'})
     completed, failures = 0, 0
 
     def checkpoint(fetching):
         atomic_write(path, json.dumps({'devices': devices, 'updated_at': datetime.now(timezone.utc).isoformat(),
-            'fetching': fetching, 'completed': completed, 'total': len(devices), 'failures': failures}).encode())
-        atomic_write(KEYS, cipher().encrypt(json.dumps([a.to_json() for a in accessories]).encode()))
+            'fetching': fetching, 'completed': completed, 'total': len(selected_devices), 'failures': failures}).encode())
+        atomic_write(KEYS, cipher().encrypt(json.dumps([a.to_json() for a in (all_accessories or accessories)]).encode()))
         save_session(account)
         try:
             Bridge(DATA).enqueue(devices)
@@ -286,14 +311,15 @@ async def fetch_positions(account, accessories):
 
     checkpoint(True)
     try:
-        for number, (accessory, device) in enumerate(zip(accessories, devices), 1):
-            label = f'[{number}/{len(devices)}] {device["name"]}'
+        for number, (accessory, device) in enumerate(zip(accessories, selected_devices), 1):
+            label = f'[{number}/{len(selected_devices)}] {device["name"]}'
             device['fetch_status'] = 'fetching'
             checkpoint(True)
             print(f'{label}: söker senaste position.', flush=True)
             try:
                 with heartbeat(label):
                     report = await account.fetch_location(accessory)
+                record_session_status(last_fetch_at=time.time(), login_required=False)
                 if report is not None:
                     device['location'] = {'latitude': report.latitude, 'longitude': report.longitude,
                                           'accuracy': report.horizontal_accuracy, 'timestamp': report.timestamp.isoformat()}
@@ -312,12 +338,14 @@ async def fetch_positions(account, accessories):
     finally:
         # Cancellation still leaves already received positions and alignment saved.
         checkpoint(False)
-    print(f'Klart. {completed} av {len(devices)} föremål kontrollerade; {failures} nätverksfel.', flush=True)
+    print(f'Klart. {completed} av {len(selected_devices)} valda föremål kontrollerade; {failures} nätverksfel.', flush=True)
     return 1 if failures else 0
 
 
 async def run():
     from findmy import AsyncAppleAccount, FindMyAccessory, LoginState
+    if '--non-interactive' in sys.argv and not all(path.exists() for path in (SESSION, KEYS, MACHINE / 'identity.json', COREADI)):
+        raise LoginRequired('Automatisk sökning pausad. Förbered inloggning och föremål manuellt i appen först.')
     cooldown, MacAnisette, Provider, Resyncer = load_modules()
     cooldown.guard()
     ensure_library()
@@ -331,8 +359,19 @@ async def run():
         if not accessories:
             print('Inga exporterbara Hitta-föremål hittades i den dekrypterade nyckelringen.', flush=True)
             return 2
-        print(f'Hämtar positioner för {len(accessories)} föremål.', flush=True)
-        return await fetch_positions(account, accessories)
+        if '--export' in sys.argv:
+            save_session(account)
+            record_session_status(login_required=False)
+            print(f'Klart. {len(accessories)} föremål tillgängliga. Välj vilka som ska hämtas i appen, '
+                  'spara urvalet och välj Hämta positioner.', flush=True)
+            return 0
+        selected = DeviceSelection(DATA).filter(accessories)
+        print(f'Hämtar positioner för {len(selected)} valda av {len(accessories)} föremål.', flush=True)
+        if not selected:
+            print('Inga föremål är valda. Välj minst ett föremål i appen innan sökning.', flush=True)
+            await fetch_positions(account, [], all_accessories=accessories)
+            return 20
+        return await fetch_positions(account, selected, all_accessories=accessories)
     finally:
         if account is not None:
             await account.close()
@@ -344,6 +383,13 @@ def main():
     except (Exception, SystemExit) as error:
         # Never print upstream exception strings: they can include account tokens.
         marker = DATA / 'macadi/gsa-429'
+        needs_login = isinstance(error, LoginRequired) or type(error).__name__ in (
+            'UnauthorizedError', 'InvalidCredentialsError', 'InvalidStateError', 'InvalidToken')
+        if needs_login:
+            record_session_status(login_required=True)
+            print('Ny Apple-inloggning eller manuell förberedelse behövs. Automatisk sökning pausas; '
+                  'öppna appen och välj Ny positionsinloggning eller Anslut Apple-konto.', flush=True)
+            return 10
         if marker.exists() and time.time() - marker.stat().st_mtime < 45 * 60:
             print('Apple begränsar anropen (429). Vänta minst 45 minuter innan nästa försök.', flush=True)
         elif isinstance(error, UserError):

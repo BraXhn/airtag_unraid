@@ -36,8 +36,9 @@ en viss användares inloggning. Se [upstreams resultat](https://github.com/malme
    just den enhetens kod. Den fysiska enheten behöver inte vara framför dig
    om Apple fortfarande har en återställningsbar nyckelringspost för den.
    Ett felaktigt kodförsök upprepas inte automatiskt.
-6. Appen läser och dekrypterar föremålsnycklarna och hämtar senaste positionerna.
-   Därefter använder **Hämta positioner** den sparade sessionen och nycklarna.
+6. Appen läser och dekrypterar föremålsnycklarna. Välj vilka föremål som ska
+   ingå under **Välj föremål att hämta** och klicka **Spara urval**.
+   **Hämta positioner** använder sedan den sparade sessionen och nycklarna.
    **Ny positionsinloggning** loggar in igen på samma sparade maskin.
 
 Första positionssökningen kan ta flera minuter per föremål när biblioteket
@@ -69,7 +70,7 @@ byter inte lösenord och accepterar inte iCloud-villkor åt dig. Om Apple kräve
 - `/data/macadi/machine/`: maskinidentitet och CoreADI-tillstånd, skyddat med
   Unix-behörigheter men inte krypterat av appen. Dessa är också känsliga filer.
 - `/data/macadi/gsa-429`: beständig väntetid efter en HTTP 429. Ingen automatisk
-  inloggningsloop körs; nästa manuella försök stoppas under 45 minuter.
+  inloggningsloop körs; manuella och automatiska sökningar respekterar väntetiden på 45 minuter.
 - Krypteringen använder det befintliga applösenordet. Ett byte av `APP_PASSWORD`
   gör sparade sessioner och föremålsnycklar oläsbara; logga då in och hämta
   föremålen på nytt. Minimikravet är 12 tecken.
@@ -86,6 +87,11 @@ Den gamla exportören finns kvar för kompatibilitet via `FINDMY_BACKEND=legacy`
 men den är inte en lösning på `-80045` och rekommenderas inte för nya sessioner.
 
 ## Kartbilder blockerade
+
+Val av föremål finns under [DEVICE-SELECTION.md](DEVICE-SELECTION.md).
+Automatisk positionssökning och information om sessionens livslängd finns
+under [AUTOMATIC-SEARCH.md](AUTOMATIC-SEARCH.md). Automatiken använder den
+sparade sessionen och pausas när manuell inloggning behövs.
 
 Felbilden **Access blocked** från OpenStreetMap gäller kartbilderna och är ett
 separat problem. Appens tidigare `Referrer-Policy: no-referrer` stred mot

@@ -54,9 +54,10 @@ Använd ett betrott nätverk och HTTPS via din reverse-proxy om du behöver kryp
    tvåfaktorsmetod: SMS eller betrodd enhet.
 2. Välj den tidigare enhet vars skärmlåskod du känner till. Återställningen
    läser föremålsnycklar utan att ansluta en ny medlem till nyckelringen.
-3. Kartan visar senaste rapporterade position och tid. Klicka **Hämta positioner**
+3. Välj vilka föremål som ska ingå under **Välj föremål att hämta** och klicka
+   **Spara urval**. Kartan visar senaste rapporterade position och tid. Klicka **Hämta positioner**
    för att uppdatera med sparad session. Vid sessionsfel väljer du
-   **Ny positionsinloggning**. Ingen automatisk Apple-pollning körs.
+   **Ny positionsinloggning**. Automatisk sökning är valbar och avstängd från början.
 
 Den aktuella metoden och datalagringen beskrivs i [APPLE-LINUX.md](APPLE-LINUX.md).
 Den gamla Rust-exportören finns kvar som ett separat kompatibilitetsläge;
@@ -120,6 +121,19 @@ Apple tillhandahåller inget officiellt stöd för denna integration. Förändri
 Appen stöder Teltonika Codec 8 och Codec 8E över TCP med redigerbart virtuellt
 15-siffrigt ID per AirTag, beständig kö, kvittenser och återförsök. Ställ in
 serveradress, port och protokoll i webbgränssnittet och aktivera sändningen.
-Apple-positioner hämtas fortfarande manuellt med **Hämta positioner**.
+Apple-positioner hämtas med **Hämta positioner** eller med ett valt automatiskt intervall.
 Se [TCP-SERVER.md](TCP-SERVER.md) för installation och mottagarens protokollkrav.
+
+## Automatiska intervall och sessionens livslängd
+
+Välj **Automatisk positionssökning** i appen: 5, 15 eller 30 minuter, eller
+1, 3, 6, 12 eller 24 timmar. Schemat körs i containern, räknar intervallet
+från föregående avslutad sökning och pausar när ny Apple-inloggning behövs.
+Appen visar inloggningens ålder och senaste genomförda positionssökning.
+Ingen fast giltighetstid för Apple-sessionen kan lovas.
+Se [AUTOMATIC-SEARCH.md](AUTOMATIC-SEARCH.md) för tider, felhantering och sessionsinformation.
+
+Urvalet av föremål används av både manuella och automatiska sökningar.
+Se [DEVICE-SELECTION.md](DEVICE-SELECTION.md) för enstaka föremål, nytillkomna
+enheter och tidigare sparade positioner.
 

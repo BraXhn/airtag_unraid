@@ -15,6 +15,8 @@ from pathlib import Path
 
 from flask import Flask, Response, abort, jsonify, render_template, request
 from teltonika import Bridge
+from scheduler import AutoRefresh
+from device_selection import DeviceSelection
 
 os.umask(0o077)
 DATA = Path(os.environ.get('DATA_DIR', '/data'))
@@ -37,6 +39,9 @@ class Job:
         self.secrets = []
         self.code = None
         self.started = 0
+        self.started_at = None
+        self.finished_at = None
+        self.run_id = 0
 
     def _text(self):
         value = self.output
@@ -47,7 +52,8 @@ class Job:
     def state(self):
         with self.lock:
             return {'running': self.fd is not None,
-                    'output': self._text(), 'exit_code': self.code}
+                    'output': self._text(), 'exit_code': self.code,
+                    'started_at': self.started_at, 'finished_at': self.finished_at, 'run_id': self.run_id}
 
     def start(self, argv):
         with self.lock:
@@ -68,6 +74,8 @@ class Job:
             finally:
                 os.close(slave)
             self.fd, self.started = master, time.monotonic()
+            self.run_id += 1
+            self.started_at, self.finished_at = time.time(), None
             threading.Thread(target=self._read, args=(self.proc, master), daemon=True).start()
             return True
 
@@ -97,6 +105,7 @@ class Job:
         finally:
             with self.lock:
                 self.code = proc.returncode
+                self.finished_at = time.time()
                 self.fd = None
                 os.close(fd)
 
@@ -116,6 +125,8 @@ class Job:
 
 
 job = Job()
+auto_refresh = AutoRefresh(DATA, job, [sys.executable, str(ROOT / 'mac_worker.py'), '--non-interactive'])
+device_selection = DeviceSelection(DATA)
 
 
 @app.before_request
@@ -220,6 +231,7 @@ def answer():
 
 @app.post('/api/stop')
 def stop():
+    auto_refresh.defer()
     job.stop()
     return {'ok': True}
 
@@ -245,4 +257,39 @@ def save_forwarding():
         bridge.reconcile()
     except ValueError as error:
         return {'error': str(error)}, 400
+    return {'ok': True}
+
+
+@app.get('/api/auto-refresh')
+def refresh_state():
+    return auto_refresh.state()
+
+
+@app.post('/api/auto-refresh')
+def save_refresh():
+    try:
+        auto_refresh.save(request.get_json(silent=True))
+    except ValueError as error:
+        return {'error': str(error)}, 400
+    return {'ok': True}
+
+
+@app.get('/api/device-selection')
+def selection_state():
+    try:
+        return device_selection.state()
+    except Exception:
+        return {'all_devices': True, 'identifiers': [], 'devices': [],
+                'error': 'Föremålslistan kunde inte läsas. Anslut Apple-kontot i appen igen.'}
+
+
+@app.post('/api/device-selection')
+def save_selection():
+    try:
+        device_selection.save(request.get_json(silent=True))
+        auto_refresh.devices_changed()
+    except ValueError as error:
+        return {'error': str(error)}, 400
+    except Exception:
+        return {'error': 'Föremålslistan kunde inte läsas. Anslut Apple-kontot i appen igen.'}, 400
     return {'ok': True}

@@ -1,8 +1,6 @@
 """Interactive FindMy client, isolated from the HTTP server."""
 import asyncio
-import base64
 import getpass
-import hashlib
 import json
 import logging
 import os
@@ -10,7 +8,7 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
-from cryptography.fernet import Fernet
+from storage import atomic_write, cipher
 from findmy import AppleAccount, FindMyAccessory, LocalAnisetteProvider, LoginState
 from findmy import SmsSecondFactorMethod
 from teltonika import Bridge
@@ -18,19 +16,6 @@ from teltonika import Bridge
 os.umask(0o077)
 logging.disable(logging.CRITICAL)
 DATA = Path(os.environ.get('DATA_DIR', '/data'))
-
-
-def atomic_write(path, content):
-    tmp = path.with_suffix(path.suffix + '.tmp')
-    tmp.write_bytes(content)
-    tmp.chmod(0o600)
-    tmp.replace(path)
-
-
-def cipher():
-    # A high-entropy APP_PASSWORD is required; the Compose setup generates one.
-    key = hashlib.sha256(('airtag-session-v1:' + os.environ['APP_PASSWORD']).encode()).digest()
-    return Fernet(base64.urlsafe_b64encode(key))
 
 
 def main():

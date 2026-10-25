@@ -192,6 +192,8 @@ class Bridge:
             if not cfg['enabled']:
                 return
             for device in devices:
+                if device.get('selected') is False:
+                    continue
                 location = device.get('location')
                 tag = db.execute('SELECT imei FROM tags WHERE identifier=?', (device.get('identifier'),)).fetchone()
                 if not location or tag is None:
