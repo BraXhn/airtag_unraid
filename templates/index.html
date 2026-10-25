@@ -4,8 +4,8 @@
 <script defer src="/static/leaflet.js"></script><script defer src="/static/app.js"></script></head>
 <body><header><span class="brand">◎</span><div><small>DIN PRIVATA ÖVERSIKT</small><h1>Mina föremål</h1></div><span id="status">Inte ansluten</span></header>
 <main><aside><h2>Anslut ditt Apple-konto</h2><p>Hämta dina föremål och visa deras senast rapporterade plats.</p>
-<div class="step"><b>1</b><div><h3>Hämta föremål</h3><p>Logga in och hämta AirTag-nycklar från ditt konto. Följ frågorna i dialogen nedan.</p><button data-action="export">Anslut Apple-konto</button></div></div>
-<div class="step"><b>2</b><div><h3>Visa positioner</h3><p>Första gången kan en separat Apple-inloggning behövas. Därefter används sparad session.</p><button data-action="locations">Hämta positioner</button></div></div>
+<div class="step"><b>1</b><div><h3>Hämta föremål</h3><p>Linux-inloggning utan Mac. Första gången hämtas ett Apple-bibliotek; därefter loggar du in och låser upp föremålsnycklar med en tidigare enhets skärmlåskod. Följ dialogen nedan.</p><button data-action="export">Anslut Apple-konto</button></div></div>
+<div class="step"><b>2</b><div><h3>Visa positioner</h3><p>Använder den sparade Linux-sessionen. Välj Ny positionsinloggning om Apple kräver ny verifiering.</p><button data-action="locations">Hämta positioner</button></div></div>
 <details><summary>Om inloggningen behöver förnyas</summary><button data-action="relogin">Ny positionsinloggning</button><p>Apple-kontot måste vara samma konto som i steg 1.</p></details>
 <p class="note">Experimentell, inofficiell integration. Tvåfaktorskod och en tidigare enhets skärmlåskod kan behövas. Appen kan inte ersätta dessa verifieringar.</p>
 <h2>Föremål <span id="count">0</span></h2><div id="devices"><p>Inga positioner hämtade ännu.</p></div></aside>
