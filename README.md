@@ -98,3 +98,11 @@ Python-testerna använder lokala processer och simulerade kontosvar. Actions byg
 - Leaflet 1.9.4: https://leafletjs.com — BSD-2-Clause; licens i `static/LEAFLET-LICENSE`.
 
 Apple tillhandahåller inget officiellt stöd för denna integration. Förändringar på Apples sida kan stoppa den.
+## Vidarebefordra till egen spårningsserver
+
+Appen stöder Teltonika Codec 8 och Codec 8E över TCP med redigerbart virtuellt
+15-siffrigt ID per AirTag, beständig kö, kvittenser och återförsök. Ställ in
+serveradress, port och protokoll i webbgränssnittet och aktivera sändningen.
+Apple-positioner hämtas fortfarande manuellt med **Hämta positioner**.
+Se [TCP-SERVER.md](TCP-SERVER.md) för installation och mottagarens protokollkrav.
+

@@ -13,6 +13,7 @@ from pathlib import Path
 from cryptography.fernet import Fernet
 from findmy import AppleAccount, FindMyAccessory, LocalAnisetteProvider, LoginState
 from findmy import SmsSecondFactorMethod
+from teltonika import Bridge
 
 os.umask(0o077)
 logging.disable(logging.CRITICAL)
@@ -84,6 +85,10 @@ def main():
         atomic_write(session, cipher().encrypt(json.dumps(account.to_json()).encode()))
         result = {'devices': devices, 'updated_at': datetime.now(timezone.utc).isoformat()}
         atomic_write(DATA / 'locations.json', json.dumps(result).encode())
+        try:
+            Bridge(DATA).enqueue(devices)
+        except Exception:
+            print('Kartan sparades, men TCP-kön kunde inte uppdateras. Kontrollera lagringsutrymmet.', flush=True)
         print(f'Klart. {sum(d["location"] is not None for d in devices)} av {len(devices)} föremål har position.', flush=True)
         return 0
     except Exception as error:

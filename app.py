@@ -14,6 +14,7 @@ import time
 from pathlib import Path
 
 from flask import Flask, Response, abort, jsonify, render_template, request
+from teltonika import Bridge
 
 os.umask(0o077)
 DATA = Path(os.environ.get('DATA_DIR', '/data'))
@@ -23,7 +24,8 @@ if len(PASSWORD) < 12:
     raise RuntimeError('APP_PASSWORD must contain at least 12 characters')
 ROOT = Path(__file__).resolve().parent
 app = Flask(__name__)
-app.config['MAX_CONTENT_LENGTH'] = 8192
+app.config['MAX_CONTENT_LENGTH'] = 262144
+bridge = Bridge(DATA)
 
 
 class Job:
@@ -134,6 +136,7 @@ def protect():
         origin = request.headers.get('Origin')
         if origin and origin.rstrip('/') != request.host_url.rstrip('/'):
             abort(403)
+    bridge.start()
 
 
 @app.after_request
@@ -219,3 +222,19 @@ def locations():
     if not path.exists():
         return {'devices': [], 'updated_at': None}
     return jsonify(json.loads(path.read_text()))
+
+
+@app.get('/api/forwarding')
+def forwarding():
+    bridge.reconcile()
+    return {'config': bridge.config(), 'status': bridge.status()}
+
+
+@app.post('/api/forwarding')
+def save_forwarding():
+    try:
+        bridge.save_config(request.get_json(silent=True))
+        bridge.reconcile()
+    except ValueError as error:
+        return {'error': str(error)}, 400
+    return {'ok': True}
