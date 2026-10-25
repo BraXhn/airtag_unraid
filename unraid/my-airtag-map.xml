@@ -3,15 +3,17 @@
   <Name>airtag-map</Name>
   <Repository>ghcr.io/braxhn/airtag_unraid:latest</Repository>
   <Registry>https://github.com/BraXhn/airtag_unraid/pkgs/container/airtag_unraid</Registry>
-  <Network>bridge</Network>
+  <Network>br0</Network>
+  <MyIP/>
   <Privileged>false</Privileged>
-  <Overview>Experimentell karta for dina egna AirTags och Hitta-foremal. Anvand imagen fran GitHub Container Registry efter att Actions-bygget lyckats. Apple-inloggning sker inne i appen. Porten binds till 127.0.0.1:8787; oppna via SSH-tunnel eller konfigurera HTTPS-proxy. Docker-bygget och verklig Apple-atkomst ar inte verifierade.</Overview>
+  <Overview>Experimentell karta för dina egna AirTags och Hitta-föremål. Välj ditt eget Custom-nätverk och ange containerns adress i Fixed IP address. WebUI använder den valda adressen på port 8787. Ange Apple-inloggningen inne i appen. Bygge och appstart är verifierade; faktisk Apple-åtkomst måste provas med ditt konto.</Overview>
   <Category>Tools:</Category>
-  <WebUI>http://localhost:8787/</WebUI>
+  <WebUI>http://[IP]:[PORT:8787]/</WebUI>
   <TemplateURL>https://raw.githubusercontent.com/BraXhn/airtag_unraid/main/unraid/my-airtag-map.xml</TemplateURL>
   <Icon/>
-  <ExtraParams>--publish=127.0.0.1:8787:8787 --user=1000:1000 --read-only --tmpfs=/tmp:rw,noexec,nosuid,size=128m --cap-drop=ALL --security-opt=no-new-privileges:true --init --restart=unless-stopped</ExtraParams>
+  <ExtraParams>--user=1000:1000 --read-only --tmpfs=/tmp:rw,noexec,nosuid,size=128m --cap-drop=ALL --security-opt=no-new-privileges:true --init --restart=unless-stopped</ExtraParams>
   <PostArgs/>
+  <Config Name="WebUI port" Target="8787" Default="8787" Mode="tcp" Description="WebUI listens on port 8787. On a Custom network, connect to the container Fixed IP address directly on port 8787." Type="Port" Display="always" Required="true" Mask="false">8787</Config>
   <Config Name="Appdata" Target="/data" Default="/mnt/user/appdata/airtag-map" Mode="rw" Description="Persistent Apple sessions, accessory keys and last locations. Protect this directory and backups." Type="Path" Display="always" Required="true" Mask="false">/mnt/user/appdata/airtag-map</Config>
   <Config Name="App password" Target="APP_PASSWORD" Default="" Mode="" Description="App login password, not your Apple password. Username: admin. Choose a separate random password of at least 24 characters." Type="Variable" Display="always" Required="true" Mask="true"></Config>
   <Config Name="Data directory inside container" Target="DATA_DIR" Default="/data" Mode="" Description="Keep /data unless also changing the path mapping." Type="Variable" Display="advanced" Required="true" Mask="false">/data</Config>
