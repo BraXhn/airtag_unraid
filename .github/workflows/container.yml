@@ -51,7 +51,7 @@ jobs:
           docker run -d --name airtag-smoke --read-only \
             --tmpfs /tmp:rw,noexec,nosuid,size=128m \
             --tmpfs /data:rw,uid=1000,gid=1000,mode=0700 \
-            -e APP_PASSWORD=ci-only-012345678901234567890123456789 \
+            -e APP_PASSWORD=ci-pass-1234 \
             "$IMAGE:$GITHUB_SHA"
           for attempt in $(seq 1 30); do
             if docker exec airtag-smoke python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8787/healthz',timeout=2)"; then
