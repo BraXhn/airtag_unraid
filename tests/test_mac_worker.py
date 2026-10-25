@@ -196,3 +196,58 @@ def test_fatal_fetch_keeps_already_received_report(state, monkeypatch):
     assert result['completed']==1 and result['fetching'] is False
     assert result['devices'][0]['location']['latitude']==59.3
     assert worker.KEYS.exists()
+
+
+def test_unattended_mode_never_prompts_or_provisions_when_not_ready(state, monkeypatch):
+    monkeypatch.setattr(sys,'argv',['mac_worker.py','--non-interactive'])
+    def forbidden(*args): raise AssertionError('Unattended mode must not ask for credentials')
+    monkeypatch.setattr('builtins.input',forbidden)
+    monkeypatch.setattr(worker.getpass,'getpass',forbidden)
+    monkeypatch.setattr(worker,'ensure_library',forbidden)
+    assert worker.main()==10
+    status=json.loads((state/'session-status.json').read_text())
+    assert status['login_required'] is True
+
+
+def test_unattended_recovery_refuses_passcode_prompt(state, monkeypatch):
+    monkeypatch.setattr(sys,'argv',['mac_worker.py','--non-interactive'])
+    with pytest.raises(worker.LoginRequired): asyncio.run(worker.recover_accessories(None))
+
+
+def test_only_selected_device_is_queried_and_other_keys_and_locations_are_preserved(state, monkeypatch):
+    class Tag:
+        model='AirTag'
+        def __init__(self, identity): self.identifier=self.name=identity
+        def to_json(self): return {'identifier':self.identifier,'master_key':'private-'+self.identifier}
+    tags=[Tag('one'),Tag('two')]
+    previous={'latitude':58.0,'longitude':17.0,'accuracy':50,'timestamp':'2026-10-24T00:00:00Z'}
+    (state/'locations.json').write_text(json.dumps({'devices':[{'identifier':'one','location':previous}]}))
+    monkeypatch.setattr(worker,'save_session',lambda account:None)
+    called=[]
+    class Account:
+        async def fetch_location(self, tag):
+            called.append(tag.identifier)
+            return None
+    assert asyncio.run(worker.fetch_positions(Account(),[tags[1]],all_accessories=tags))==0
+    assert called==['two']
+    devices=json.loads((state/'locations.json').read_text())['devices']
+    unselected=next(d for d in devices if d['identifier']=='one')
+    assert unselected['location']==previous and unselected['selected'] is False
+    assert len(json.loads(worker.cipher().decrypt(worker.KEYS.read_bytes())))==2
+
+
+def test_export_returns_device_list_before_any_position_query(state, monkeypatch):
+    monkeypatch.setattr(sys,'argv',['mac_worker.py','--export'])
+    class Account:
+        async def close(self): pass
+        async def fetch_location(self,*args): raise AssertionError('export must not fetch positions')
+    account=Account()
+    async def auth(*args): return account
+    async def recover(*args): return [SimpleNamespace(identifier='one')]
+    monkeypatch.setattr(worker,'authenticate',auth)
+    monkeypatch.setattr(worker,'recover_accessories',recover)
+    monkeypatch.setattr(worker,'load_modules',lambda:(SimpleNamespace(guard=lambda:None),None,None,None))
+    monkeypatch.setattr(worker,'ensure_library',lambda:None)
+    monkeypatch.setattr(worker,'save_session',lambda account:None)
+    assert asyncio.run(worker.run())==0
+    assert not (state/'locations.json').exists()

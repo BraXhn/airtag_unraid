@@ -143,3 +143,12 @@ def test_rejected_imei_is_not_delivered(tmp_path, monkeypatch):
     bridge.dispatch_one()
     assert bridge.status()['sent'] == 0
     assert bridge.status()['error'] == 'Servern avvisade ID:t'
+
+
+def test_unselected_cached_location_is_not_queued(tmp_path):
+    bridge=Bridge(tmp_path)
+    enable(bridge)
+    bridge.enqueue([dict(DEVICES[0],selected=False)])
+    assert bridge.status()['pending']==0
+    bridge.enqueue([dict(DEVICES[0],selected=True)])
+    assert bridge.status()['pending']==1

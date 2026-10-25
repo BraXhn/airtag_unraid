@@ -18,6 +18,7 @@ def module(tmp_path, monkeypatch):
     module = importlib.reload(app)
     yield module
     module.job.stop()
+    module.auto_refresh.stop_event.set()
     module.bridge.stop_event.set()
     if module.bridge.thread:
         module.bridge.thread.join(timeout=2)
@@ -79,6 +80,34 @@ def test_default_actions_use_linux_backend(module, monkeypatch):
         assert client.post('/api/start',headers=auth(),json={'action':action}).status_code==200
         assert commands[-1][1].endswith('/mac_worker.py')
         assert commands[-1][2:]==([expected] if expected else [])
+
+
+def test_auto_refresh_settings_are_protected_and_persistent(module):
+    client=module.app.test_client()
+    assert client.get('/api/auto-refresh').status_code==401
+    assert client.post('/api/auto-refresh',json={}).status_code==401
+    cfg={'enabled':True,'interval_minutes':30}
+    assert client.post('/api/auto-refresh',headers={'Authorization':auth()['Authorization']},json=cfg).status_code==403
+    assert client.post('/api/auto-refresh',headers=auth(),json=cfg).status_code==200
+    result=client.get('/api/auto-refresh',headers=auth()).json
+    assert result['enabled'] and result['interval_minutes']==30
+    assert result['session']['expected_expiry'] is None
+    assert (module.DATA/'auto-refresh.json').exists()
+
+
+def test_device_selection_requires_auth_and_never_exposes_keys(module,monkeypatch):
+    from storage import cipher
+    client=module.app.test_client()
+    assert client.get('/api/device-selection').status_code==401
+    values=[{'identifier':'one','name':'Nycklar','model':'AirTag','master_key':'do-not-expose-this-key'}]
+    (module.DATA/'mac-accessories.enc').write_bytes(cipher().encrypt(json.dumps(values).encode()))
+    result=client.get('/api/device-selection',headers=auth())
+    assert result.status_code==200 and 'do-not-expose-this-key' not in result.text
+    assert 'master_key' not in result.text
+    body={'all_devices':False,'identifiers':['one']}
+    assert client.post('/api/device-selection',headers={'Authorization':auth()['Authorization']},json=body).status_code==403
+    assert client.post('/api/device-selection',headers=auth(),json=body).status_code==200
+    assert module.device_selection.read()['identifiers']==['one']
 
 
 def test_pty_input_is_hidden_and_single_job(module):
