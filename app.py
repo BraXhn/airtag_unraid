@@ -167,15 +167,21 @@ def index():
 @app.get('/api/state')
 def state():
     result = job.state()
-    result['has_keys'] = any((DATA / 'export' / 'keys').glob('*.json'))
-    result['has_session'] = (DATA / 'session.enc').exists()
+    result['has_keys'] = (DATA / 'mac-accessories.enc').exists() or any((DATA / 'export' / 'keys').glob('*.json'))
+    result['has_session'] = (DATA / 'mac-session.enc').exists() or (DATA / 'session.enc').exists()
     return result
 
 
 @app.post('/api/start')
 def start():
     action = (request.get_json(silent=True) or {}).get('action')
-    if action == 'export':
+    if action in ('export', 'locations', 'relogin') and os.environ.get('FINDMY_BACKEND', 'macadi') == 'macadi':
+        argv = [sys.executable, str(ROOT / 'mac_worker.py')]
+        if action == 'export':
+            argv.append('--export')
+        elif action == 'relogin':
+            argv.append('--relogin')
+    elif action == 'export':
         folder = DATA / 'export'
         folder.mkdir(exist_ok=True)
         profile = folder / 'device-profile.toml'

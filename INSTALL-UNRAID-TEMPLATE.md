@@ -38,7 +38,7 @@ Gå till **Docker → Add Container**. Välj **airtag-map** i listan **Template*
 | Appdata: Container Path | `/data` |
 | App password / APP_PASSWORD | Skapa ett separat slumpmässigt lösenord, minst 12 tecken |
 | DATA_DIR | `/data` |
-| ANISETTE_URL | `https://ani.sidestore.io` |
+| ANISETTE_URL | Används endast av den äldre Rust-exportören; standardmetoden använder lokal CoreADI |
 
 Spara applösenordet i din lösenordshanterare. **Skriv inte ditt Apple-lösenord i templaten.**
 
@@ -60,7 +60,7 @@ Välj **WebUI** för containern, eller öppna `http://DIN-VALDA-IP:8787` i webbl
 
 Använd ett betrott nätverk. HTTP krypterar inte lösenord; för krypterad åtkomst använder du HTTPS via en reverse-proxy.
 
-Logga in med användarnamnet `admin` och **applösenordet du valde i templaten**. Inne i appen klickar du **Anslut Apple-konto** och följer dialogen. När exporten lyckats klickar du **Hämta positioner**. Två separata Apple-inloggningar kan behövas. Tvåfaktorskod och en tidigare enhets skärmlåskod kan krävas och kan inte kringgås.
+Logga in med användarnamnet `admin` och **applösenordet du valde i templaten**. Inne i appen klickar du **Anslut Apple-konto** och följer dialogen. När exporten lyckats klickar du **Hämta positioner**. Standardmetoden använder nu Linux-emulering utan fysisk Mac; första gången behövs minst 1 GB ledigt appdata för förberedelse av Apple-biblioteket. Se [APPLE-LINUX.md](APPLE-LINUX.md) för SMS, sparad session och felsökning. Tvåfaktorskod och en tidigare enhets skärmlåskod kan krävas och kan inte kringgås.
 
 ## Begränsningar
 

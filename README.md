@@ -6,6 +6,13 @@ Experimentell webbapp i en Linux-container för dina egna AirTags och kompatibla
 
 **Status:** Appens HTTP-skydd, interaktiva dialog, sessionskryptering och datamappning är lokalt testade. Actions kontrollerar Docker-bygget och appstart innan imagen publiceras; se senaste körningen för resultat. Inloggning mot ett riktigt Apple-konto är inte verifierad. Detta är en experimentell integration, inte bekräftad AirTag-åtkomst för ditt konto.
 
+## Apple-inloggning utan Mac
+
+Standardmetoden använder nu emulerad macOS CoreADI direkt i Linux-containern.
+Den ersätter den Android-baserade inloggning som kan avvisas med `-80045`.
+Se [APPLE-LINUX.md](APPLE-LINUX.md) för den aktuella inloggningsgången, SMS,
+lagring, krav på minst 1 GB ledigt appdata och begränsningar. Ingen fysisk Mac behövs.
+
 ## Vad du behöver
 
 - Unraid på x86-64 med Docker. Docker Compose behövs bara om du väljer Compose-metoden nedan; template-installationen kräver det inte.
@@ -42,22 +49,32 @@ Använd ett betrott nätverk och HTTPS via din reverse-proxy om du behöver kryp
 
 ## Hämta föremål och positioner
 
-1. Klicka **Anslut Apple-konto**. Läs den sista frågan i dialogen och skriv svaret i det dolda svarsfältet. Alla svar är dolda, även kontonamn och menyval. Tomt svar och Skicka motsvarar Enter.
-2. Exportverktyget frågar efter Apple-konto, lösenord, verifieringsmetod och kod. Välj SMS om det erbjuds och det är den metod du kan använda. Därefter kan det fråga vilken tidigare enhet som ska användas för återställning och efter just den enhetens skärmlåskod/lösenord. Följ dialogen; ingen verifiering kringgås.
-3. Vid frågan om exporterprofilens nya escrow-lösenord väljer du normalt att generera ett slumpmässigt lösenord. Det är ett separat lokalt profilvärde, inte ditt Apple-lösenord. Exporten kan lägga till en syntetisk betrodd identitet i iCloud-nyckelring; det är en del av tredjepartsverktygets arbetsmetod.
-4. När exporten avslutats med kod 0 klickar du **Hämta positioner**. Använd samma Apple-konto. Den separata Python-klienten kan kräva ännu en inloggning och tvåfaktorskod; detta är inte en enda sömlös inloggning i den här första versionen.
-5. Kartan fylls först när verkliga positionsrapporter finns. Klicka på ett föremål för att centrera kartan. Tidpunkten är när positionen rapporterades, medan ”Hämtat” är appens hämtningstid. Positioner äldre än en timme markeras med annan textfärg.
-6. Klicka **Hämta positioner** när du vill uppdatera. Ingen kontinuerlig bakgrundsspårning eller historikinsamling är aktiverad. Svarsdialogen hämtas varannan sekund; det innebär inte att Apple tillfrågas varannan sekund.
+1. Klicka **Anslut Apple-konto** och följ den dolda dialogen. Första gången
+   förbereds Apple-biblioteket i appdata. Ange Apple-konto, lösenord och
+   tvåfaktorsmetod: SMS eller betrodd enhet.
+2. Välj den tidigare enhet vars skärmlåskod du känner till. Återställningen
+   läser föremålsnycklar utan att ansluta en ny medlem till nyckelringen.
+3. Kartan visar senaste rapporterade position och tid. Klicka **Hämta positioner**
+   för att uppdatera med sparad session. Vid sessionsfel väljer du
+   **Ny positionsinloggning**. Ingen automatisk Apple-pollning körs.
 
-Det här är en vy över exporterbara Hitta-föremål. Den ersätter inte Apples fullständiga enhetslista och inkluderar inte funktioner som fjärradering, fjärrlåsning eller en generell lista över alla inloggade enheter.
+Den aktuella metoden och datalagringen beskrivs i [APPLE-LINUX.md](APPLE-LINUX.md).
+Den gamla Rust-exportören finns kvar som ett separat kompatibilitetsläge;
+standardmetoden använder den inte. Appen ersätter inte Apples fjärradering,
+fjärrlåsning eller fullständiga enhetslista.
 
 ## Data och åtkomst
+
+Den nya Linux-metoden sparar session och föremålsnycklar krypterat och utelämnar
+Apple-lösenordet från den sparade sessionen. Se [APPLE-LINUX.md](APPLE-LINUX.md).
+Nedan beskrivs även äldre filer som behålls vid uppdatering.
+
 
 - Alla Apple-uppgifter matas in i din egen server via den skyddade anslutningen. De ska inte skickas till ChatGPT.
 - Svarsfältet skickas till en isolerad, fördefinierad processdialog; appen erbjuder ingen generell kommandoterminal. Svar ekas inte och dialogutdata sparas inte till fil av webbappen. Råa exporterutdata från tredje part visas för dig i appen; dela inte dessa utdata om de innehåller kontouppgifter.
 - `/mnt/user/appdata/airtag-map` innehåller AirTag-nycklar, betrodd nyckelringsidentitet, återanvändbara autentiseringstoken och senast hämtade positioner. Exportverktygets cache och nyckelfiler lagras **inte krypterat av denna app**, men katalog/filer har begränsade Unix-behörigheter. Skydda även Unraid-administratörsåtkomst och säkerhetskopior.
 - Python-klientens sparade session krypteras med en nyckel härledd från det slumpmässiga `APP_PASSWORD`. Upstream-sessionen kan innehålla lösenord eller andra återanvändbara inloggningsuppgifter; kryptering innebär inte att dessa saknas. Den som har både `.env` och datakatalogen kan dekryptera sessionen. Ett byte av `APP_PASSWORD` gör den gamla sessionen oläsbar; använd då **Ny positionsinloggning**.
-- Exportören använder normalt Anisette-tjänsten `https://ani.sidestore.io`. Det är en tredjepartstjänst för autentiseringsmetadata. Ange en egen kompatibel v3-tjänst via `ANISETTE_URL` i `.env` om du har en. Python-klienten använder sin lokala Anisette-generator, som hämtar nödvändiga bibliotek första gången.
+- Den gamla Rust-exportören använder Anisette-tjänsten `https://ani.sidestore.io`. Det är en tredjepartstjänst för autentiseringsmetadata. Ange en egen kompatibel v3-tjänst via `ANISETTE_URL` i `.env` om du har en. Den nya standardmetoden använder lokal macOS CoreADI-emulering i stället.
 - Webbläsaren hämtar kartbilder från OpenStreetMap. Kartleverantören får webbläsarens IP, efterfrågade kartområden och appens ursprung (protokoll, värdnamn/IP och port) som HTTP Referer enligt karttjänstens krav. Sökväg och frågeparametrar skickas inte till kartleverantören. Kontolösenord och AirTag-nycklar skickas inte till kartleverantören av appen.
 - En process kan köras åt gången. Dialogen avslutas efter högst 15 minuter. Kör endast en Gunicorn-worker; tillståndet för dialogen ligger i den processen.
 
@@ -93,7 +110,7 @@ Python-testerna använder lokala processer och simulerade kontosvar. Actions byg
 ## Källor
 
 - Exportverktyg: https://github.com/stek29/export-findmy — commit `eb5a3a93116478e1c088dc90fa84e1bb30ee232e`
-- Positionsklient: https://github.com/malmeloo/FindMy.py — commit `22e4879426f97c9b0a1a33b22dac34ef0cf3d02f`
+- Positionsklient: https://github.com/parawanderer/FindMy.py — commit `7969003ca785658369b650f75d9e7ca519566bf6`
 - Bakgrund till nyckelringsexport utan Mac: https://github.com/malmeloo/FindMy.py/issues/173
 - Leaflet 1.9.4: https://leafletjs.com — BSD-2-Clause; licens i `static/LEAFLET-LICENSE`.
 

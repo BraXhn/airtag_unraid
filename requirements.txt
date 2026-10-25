@@ -1,4 +1,4 @@
 Flask==3.1.2
 gunicorn==23.0.0
 cryptography==50.0.2
-findmy @ git+https://github.com/malmeloo/FindMy.py.git@22e4879426f97c9b0a1a33b22dac34ef0cf3d02f
+findmy @ git+https://github.com/parawanderer/FindMy.py.git@7969003ca785658369b650f75d9e7ca519566bf6
