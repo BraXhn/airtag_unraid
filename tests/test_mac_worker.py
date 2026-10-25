@@ -103,10 +103,10 @@ def test_fetch_maps_apple_reports_and_enqueues_without_new_login(state, monkeypa
         def to_json(self): return {'identifier':self.identifier}
     accessory=Accessory()
     class Account:
-        async def fetch_location(self, accessories):
-            assert accessories==[accessory]
-            return {accessory:SimpleNamespace(latitude=59.3,longitude=18.1,horizontal_accuracy=20,
-                timestamp=datetime(2026,10,25,tzinfo=timezone.utc))}
+        async def fetch_location(self, item):
+            assert item is accessory
+            return SimpleNamespace(latitude=59.3,longitude=18.1,horizontal_accuracy=20,
+                timestamp=datetime(2026,10,25,tzinfo=timezone.utc))
         async def close(self): self.closed=True
     account=Account()
     worker.KEYS.write_bytes(worker.cipher().encrypt(b'[{}]'))
@@ -143,3 +143,56 @@ def test_tls_patch_fails_closed_and_keeps_certificate_checks(tmp_path):
     context=ssl.create_default_context()
     context.load_verify_locations(cafile=Path(worker.__file__).with_name('apple-root-g3.pem'))
     assert context.check_hostname and context.verify_mode==ssl.CERT_REQUIRED
+
+
+def test_progress_preserves_completed_and_previous_positions_on_network_error(state, monkeypatch):
+    class Tag:
+        model='AirTag'
+        def __init__(self, identity): self.identifier=self.name=identity
+        def to_json(self): return {'identifier':self.identifier}
+    tags=[Tag('one'),Tag('two'),Tag('three')]
+    previous={'latitude':58.0,'longitude':17.0,'accuracy':50,'timestamp':'2026-10-24T00:00:00Z'}
+    (state/'locations.json').write_text(json.dumps({'devices':[{'identifier':'two','location':previous}]}))
+    enqueued=[]
+    class Queue:
+        def __init__(self, data): pass
+        def enqueue(self, devices):
+            enqueued.append(json.loads(json.dumps(devices)))
+    monkeypatch.setattr(worker,'Bridge',Queue)
+    monkeypatch.setattr(worker,'save_session',lambda account:None)
+    class Account:
+        async def fetch_location(self, tag):
+            if tag.identifier=='two': raise TimeoutError()
+            if tag.identifier=='three':
+                interim=json.loads((state/'locations.json').read_text())
+                assert interim['completed']==2
+                assert interim['devices'][0]['location']['latitude']==59.3
+                assert interim['devices'][1]['location']==previous
+                assert any(d[0]['fetch_status']=='ok' for d in enqueued)
+            return SimpleNamespace(latitude=59.3,longitude=18.1,horizontal_accuracy=10,
+                                   timestamp=datetime(2026,10,25,tzinfo=timezone.utc))
+    assert asyncio.run(worker.fetch_positions(Account(),tags))==1
+    final=json.loads((state/'locations.json').read_text())
+    assert final['completed']==3 and final['failures']==1 and final['fetching'] is False
+    assert final['devices'][1]['fetch_status']=='error'
+    assert final['devices'][1]['location']==previous
+    assert final['devices'][2]['fetch_status']=='ok'
+
+
+def test_fatal_fetch_keeps_already_received_report(state, monkeypatch):
+    class Tag:
+        model='AirTag'
+        def __init__(self, identity): self.identifier=self.name=identity
+        def to_json(self): return {'identifier':self.identifier}
+    tags=[Tag('one'),Tag('two')]
+    monkeypatch.setattr(worker,'save_session',lambda account:None)
+    class Account:
+        async def fetch_location(self, tag):
+            if tag.identifier=='two': raise worker.UserError('Apple-sessionen avslutades')
+            return SimpleNamespace(latitude=59.3,longitude=18.1,horizontal_accuracy=10,
+                                   timestamp=datetime(2026,10,25,tzinfo=timezone.utc))
+    with pytest.raises(worker.UserError): asyncio.run(worker.fetch_positions(Account(),tags))
+    result=json.loads((state/'locations.json').read_text())
+    assert result['completed']==1 and result['fetching'] is False
+    assert result['devices'][0]['location']['latitude']==59.3
+    assert worker.KEYS.exists()
