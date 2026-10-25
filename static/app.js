@@ -9,7 +9,7 @@ const date = value => new Date(value).toLocaleString('sv-SE');
 async function api(path,body){
   const options={cache:'no-store'};
   if(body!==undefined) Object.assign(options,{method:'POST',headers:{'Content-Type':'application/json','X-Requested-With':'AirTagMap'},body:JSON.stringify(body)});
-  const r=await fetch(path,options); if(!r.ok){const e=await r.json().catch(()=>({}));throw Error(e.error||'Anslutningen misslyckades ('+r.status+')');} return r.json();
+  const r=await fetch(path,options); if(!r.ok){if(r.status===401)window.location.replace('/login');const e=await r.json().catch(()=>({}));throw Error(e.error||'Anslutningen misslyckades ('+r.status+')');} return r.json();
 }
 function fit(){if(pins.getLayers().length)map.fitBounds(pins.getBounds(),{padding:[40,40],maxZoom:15});}
 function render(data){
@@ -140,4 +140,39 @@ $('device-selection').onsubmit=async e=>{
     $('selection-error').textContent='Urvalet sparades och gäller nästa sökning.';
   }catch(e){$('selection-error').textContent=e.message;}finally{$('selection-save').disabled=false;}
 };
+$('logout').onclick=async()=>{
+  try{await api('/api/logout',{});window.location.replace('/login');}
+  catch(e){$('error').textContent=e.message;}
+};
+async function refreshAccounts(){
+  const data=await api('/api/admin/users');$('accounts-list').replaceChildren();
+  if(!data.users.length){$('accounts-list').textContent='Inga användarkonton skapade ännu.';return;}
+  data.users.forEach(user=>{
+    const card=document.createElement('section');card.className='account-card';
+    const title=document.createElement('strong');title.textContent=user.username+' · '+(user.enabled?'Aktivt':'Pausat');card.append(title);
+    const toggle=document.createElement('button');toggle.type='button';toggle.textContent=user.enabled?'Pausa konto':'Aktivera konto';
+    toggle.onclick=async()=>{
+      toggle.disabled=true;
+      try{await api('/api/admin/users/'+user.id,{enabled:!user.enabled});await refreshAccounts();$('account-message').textContent='Kontostatusen sparades.';}
+      catch(e){$('account-message').textContent=e.message;toggle.disabled=false;}
+    };card.append(toggle);
+    const reset=document.createElement('form'),label=document.createElement('label'),input=document.createElement('input'),button=document.createElement('button');
+    label.textContent='Nytt lösenord för '+user.username;input.type='password';input.autocomplete='new-password';input.minLength=12;input.maxLength=256;input.required=true;label.append(input);
+    button.textContent='Återställ lösenord';reset.append(label,button);
+    reset.onsubmit=async event=>{
+      event.preventDefault();button.disabled=true;const password=input.value;input.value='';
+      try{await api('/api/admin/users/'+user.id,{password});$('account-message').textContent='Lösenordet återställdes. Tidigare inloggningar har avslutats.';}
+      catch(e){$('account-message').textContent=e.message;}finally{button.disabled=false;}
+    };card.append(reset);$('accounts-list').append(card);
+  });
+}
+if($('create-account')){
+  $('create-account').onsubmit=async event=>{
+    event.preventDefault();$('create-account-button').disabled=true;$('account-message').textContent='';
+    const password=$('new-password').value;$('new-password').value='';
+    try{const data=await api('/api/admin/users',{username:$('new-username').value,password});$('new-username').value='';await refreshAccounts();$('account-message').textContent='Kontot '+data.user.username+' skapades.';}
+    catch(e){$('account-message').textContent=e.message;}finally{$('create-account-button').disabled=false;}
+  };
+  $('account-admin').addEventListener('toggle',()=>{if($('account-admin').open)refreshAccounts().catch(e=>{$('account-message').textContent=e.message;});});
+}
 $('fit').onclick=fit;poll();setInterval(poll,2000);
