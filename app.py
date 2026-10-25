@@ -19,8 +19,8 @@ os.umask(0o077)
 DATA = Path(os.environ.get('DATA_DIR', '/data'))
 DATA.mkdir(parents=True, exist_ok=True)
 PASSWORD = os.environ.get('APP_PASSWORD', '')
-if len(PASSWORD) < 24:
-    raise RuntimeError('APP_PASSWORD must contain at least 24 characters')
+if len(PASSWORD) < 12:
+    raise RuntimeError('APP_PASSWORD must contain at least 12 characters')
 ROOT = Path(__file__).resolve().parent
 app = Flask(__name__)
 app.config['MAX_CONTENT_LENGTH'] = 8192

@@ -36,7 +36,7 @@ Gå till **Docker → Add Container**. Välj **airtag-map** i listan **Template*
 | Privileged | Av |
 | Appdata: Host Path | `/mnt/user/appdata/airtag-map` |
 | Appdata: Container Path | `/data` |
-| App password / APP_PASSWORD | Skapa ett separat slumpmässigt lösenord, minst 24 tecken |
+| App password / APP_PASSWORD | Skapa ett separat slumpmässigt lösenord, minst 12 tecken |
 | DATA_DIR | `/data` |
 | ANISETTE_URL | `https://ani.sidestore.io` |
 
