@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Container version="2">
+  <Name>airtag-map</Name>
+  <Repository>ghcr.io/braxhn/airtag_unraid:latest</Repository>
+  <Registry>https://github.com/BraXhn/airtag_unraid/pkgs/container/airtag_unraid</Registry>
+  <Network>bridge</Network>
+  <Privileged>false</Privileged>
+  <Overview>Experimentell karta for dina egna AirTags och Hitta-foremal. Anvand imagen fran GitHub Container Registry efter att Actions-bygget lyckats. Apple-inloggning sker inne i appen. Porten binds till 127.0.0.1:8787; oppna via SSH-tunnel eller konfigurera HTTPS-proxy. Docker-bygget och verklig Apple-atkomst ar inte verifierade.</Overview>
+  <Category>Tools:</Category>
+  <WebUI>http://localhost:8787/</WebUI>
+  <TemplateURL>https://raw.githubusercontent.com/BraXhn/airtag_unraid/main/unraid/my-airtag-map.xml</TemplateURL>
+  <Icon/>
+  <ExtraParams>--publish=127.0.0.1:8787:8787 --user=1000:1000 --read-only --tmpfs=/tmp:rw,noexec,nosuid,size=128m --cap-drop=ALL --security-opt=no-new-privileges:true --init --restart=unless-stopped</ExtraParams>
+  <PostArgs/>
+  <Config Name="Appdata" Target="/data" Default="/mnt/user/appdata/airtag-map" Mode="rw" Description="Persistent Apple sessions, accessory keys and last locations. Protect this directory and backups." Type="Path" Display="always" Required="true" Mask="false">/mnt/user/appdata/airtag-map</Config>
+  <Config Name="App password" Target="APP_PASSWORD" Default="" Mode="" Description="App login password, not your Apple password. Username: admin. Choose a separate random password of at least 24 characters." Type="Variable" Display="always" Required="true" Mask="true"></Config>
+  <Config Name="Data directory inside container" Target="DATA_DIR" Default="/data" Mode="" Description="Keep /data unless also changing the path mapping." Type="Variable" Display="advanced" Required="true" Mask="false">/data</Config>
+  <Config Name="Anisette v3 server" Target="ANISETTE_URL" Default="https://ani.sidestore.io" Mode="" Description="Third-party authentication metadata service used by the exporter." Type="Variable" Display="advanced" Required="true" Mask="false">https://ani.sidestore.io</Config>
+</Container>
