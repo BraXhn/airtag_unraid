@@ -1,14 +1,14 @@
 # AirTag-karta för Unraid
 
-**Installation via Unraids Docker-formulär:** se `INSTALL-UNRAID-TEMPLATE.md`. Den metoden använder `prepare-unraid-template.sh` och kräver inte Docker Compose. Compose-metoden nedan är ett alternativ; använd endast en metod för samma datakatalog.
+**Installera via Unraids Docker-formulär:** följ [installationsguiden](INSTALL-UNRAID-TEMPLATE.md). Den använder `ghcr.io/braxhn/airtag_unraid:latest` och kräver inte Docker Compose. [GitHub Actions](https://github.com/BraXhn/airtag_unraid/actions) bygger och kontrollerar imagen. Compose-metoden nedan är ett separat alternativ; använd endast en metod för samma datakatalog.
 
 Experimentell webbapp i en Linux-container för dina egna AirTags och kompatibla Hitta-föremål. Den kombinerar export av tillbehörsnycklar från iCloud med hämtning av krypterade positionsrapporter. Kartan visar senast rapporterad position och tidsstämpel. Inga exempelpositioner används.
 
-**Status:** Appens HTTP-skydd, interaktiva dialog, sessionskryptering och datamappning är lokalt testade. Docker-bygget och inloggning mot ett riktigt Apple-konto är inte verifierade. Detta är en källkodsversion för provkörning, inte en bekräftat fungerande Apple-integration för ditt konto.
+**Status:** Appens HTTP-skydd, interaktiva dialog, sessionskryptering och datamappning är lokalt testade. Actions kontrollerar Docker-bygget och appstart innan imagen publiceras; se senaste körningen för resultat. Inloggning mot ett riktigt Apple-konto är inte verifierad. Detta är en experimentell integration, inte bekräftad AirTag-åtkomst för ditt konto.
 
 ## Vad du behöver
 
-- Unraid på x86-64 med Docker och Docker Compose. Om `docker compose version` inte fungerar behöver Compose installeras eller projektet läggas till i din befintliga Compose-hanterare.
+- Unraid på x86-64 med Docker. Docker Compose behövs bara om du väljer Compose-metoden nedan; template-installationen kräver det inte.
 - Internet från servern för byggberoenden, Apple och Anisette; webbläsaren hämtar kartbilder från OpenStreetMap.
 - Apple-konto och lösenord, tillgång till en tillåten tvåfaktorsmetod och ofta skärmlåskoden/lösenordet till en tidigare betrodd enhet. Den gamla telefonen behöver inte vara tillgänglig om kontots återställning/verifiering ändå kan genomföras.
 - Hitta och iCloud-nyckelring måste sedan tidigare innehålla användbara uppgifter för dina föremål. Alla kontokonfigurationer stöds inte.
@@ -92,7 +92,7 @@ python3 -m venv .venv
 .venv/bin/python -m pytest tests -q
 ```
 
-Testerna använder lokala processer och simulerade kontosvar. De testar inte Apple, SMS, Anisette, Rust-bygget eller faktisk AirTag-åtkomst. Docker-bygget kräver fortsatt verifiering på din server innan denna lösning kan bedömas som fungerande för ditt konto.
+Python-testerna använder lokala processer och simulerade kontosvar. Actions bygger dessutom Rust-verktyget och Docker-imagen och provar appens start utan Apple-konto. Varken testerna eller byggflödet verifierar Apple-inloggning, SMS, Anisette eller faktisk AirTag-åtkomst för ditt konto.
 
 ## Källor
 
