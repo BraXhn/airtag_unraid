@@ -1,0 +1,15 @@
+<!doctype html>
+<html lang="sv"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Mina föremål · AirTag-karta</title><link rel="stylesheet" href="/static/leaflet.css"><link rel="stylesheet" href="/static/app.css">
+<script defer src="/static/leaflet.js"></script><script defer src="/static/app.js"></script></head>
+<body><header><span class="brand">◎</span><div><small>DIN PRIVATA ÖVERSIKT</small><h1>Mina föremål</h1></div><span id="status">Inte ansluten</span></header>
+<main><aside><h2>Anslut ditt Apple-konto</h2><p>Hämta dina föremål och visa deras senast rapporterade plats.</p>
+<div class="step"><b>1</b><div><h3>Hämta föremål</h3><p>Logga in och hämta AirTag-nycklar från ditt konto. Följ frågorna i dialogen nedan.</p><button data-action="export">Anslut Apple-konto</button></div></div>
+<div class="step"><b>2</b><div><h3>Visa positioner</h3><p>Första gången kan en separat Apple-inloggning behövas. Därefter används sparad session.</p><button data-action="locations">Hämta positioner</button></div></div>
+<details><summary>Om inloggningen behöver förnyas</summary><button data-action="relogin">Ny positionsinloggning</button><p>Apple-kontot måste vara samma konto som i steg 1.</p></details>
+<p class="note">Experimentell, inofficiell integration. Tvåfaktorskod och en tidigare enhets skärmlåskod kan behövas. Appen kan inte ersätta dessa verifieringar.</p>
+<h2>Föremål <span id="count">0</span></h2><div id="devices"><p>Inga positioner hämtade ännu.</p></div></aside>
+<section class="workspace"><div class="mapbar"><div><h2>Senast kända platser</h2><small id="updated">Ingen hämtning ännu</small></div><button id="fit">Visa alla</button></div><div id="map" aria-label="Karta över föremål"></div>
+<section class="dialog"><div class="dialoghead"><h2>Inloggningsdialog</h2><button id="stop">Avbryt</button></div><p>Besvara den sista frågan. Alla svar döljs. Tryck Skicka med tomt fält för att välja ett föreslaget standardvärde.</p><pre id="output" aria-live="polite">Starta med Anslut Apple-konto.</pre>
+<form id="answer"><label for="value">Svar till den aktuella frågan</label><div class="inputrow"><input id="value" type="password" autocomplete="off" maxlength="1024" placeholder="Ditt svar"><button>Skicka</button></div></form><p id="error" role="alert"></p></section>
+</section></main><footer>Kartbilder © OpenStreetMap-bidragsgivare · Positionerna är rapporterade platser, inte kontinuerlig GPS-spårning.</footer></body></html>
