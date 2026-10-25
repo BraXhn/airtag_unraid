@@ -1,0 +1,28 @@
+services:
+  airtag-map:
+    build: .
+    image: airtag-map:local
+    container_name: airtag-map
+    restart: unless-stopped
+    init: true
+    user: "1000:1000"
+    ports:
+      - "127.0.0.1:8787:8787"
+    environment:
+      APP_PASSWORD: ${APP_PASSWORD:?Run setup.sh first}
+      DATA_DIR: /data
+      ANISETTE_URL: ${ANISETTE_URL:-https://ani.sidestore.io}
+    volumes:
+      - /mnt/user/appdata/airtag-map:/data
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=128m
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    logging:
+      driver: json-file
+      options:
+        max-size: "5m"
+        max-file: "2"
