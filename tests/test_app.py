@@ -18,6 +18,9 @@ def module(tmp_path, monkeypatch):
     module = importlib.reload(app)
     yield module
     module.job.stop()
+    module.bridge.stop_event.set()
+    if module.bridge.thread:
+        module.bridge.thread.join(timeout=2)
 
 
 def auth():
@@ -48,6 +51,22 @@ def test_data_headers_and_no_invented_positions(module):
     data = {'devices': [{'name': '<script>alert(1)</script>', 'location': None}], 'updated_at': '2026-10-25'}
     (module.DATA / 'locations.json').write_text(json.dumps(data))
     assert client.get('/api/locations', headers=auth()).json == data
+
+
+def test_forwarding_settings_require_auth_and_validate(module):
+    client = module.app.test_client()
+    assert client.get('/api/forwarding').status_code == 401
+    assert client.post('/api/forwarding', json={}).status_code == 401
+    cfg = client.get('/api/forwarding', headers=auth()).json['config']
+    assert cfg['enabled'] is False
+    assert client.post('/api/forwarding', headers=auth(), json={'enabled': True}).status_code == 400
+    cfg.update(host='192.0.2.10', port=12345, codec='8')
+    # Remain disabled: this test never contacts an external destination.
+    assert client.post('/api/forwarding', headers=auth(), json=cfg).status_code == 200
+    saved = client.get('/api/forwarding', headers=auth()).json['config']
+    assert saved['host'] == '192.0.2.10' and saved['codec'] == '8'
+    no_csrf = {'Authorization': auth()['Authorization']}
+    assert client.post('/api/forwarding', headers=no_csrf, json=cfg).status_code == 403
 
 
 def test_pty_input_is_hidden_and_single_job(module):
