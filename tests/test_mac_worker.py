@@ -60,6 +60,7 @@ def test_new_two_factor_response(status, expected, monkeypatch):
 def test_429_stops_transport_without_retry(monkeypatch):
     calls=[]
     async def request(*args, **kwargs):
+        assert kwargs['auto_retry'] is False
         calls.append('request')
         return SimpleNamespace(status_code=429)
     account = SimpleNamespace(_gsa_request=None, _http=SimpleNamespace(request=request),
