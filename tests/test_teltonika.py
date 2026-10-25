@@ -23,7 +23,7 @@ def test_packet_fields(codec, codec_id, size, io_size):
     assert data[:2] == bytes([codec_id, 1]) and data[-1] == 1
     assert struct.unpack('>Q', data[2:10])[0] == int(datetime(2026, 10, 25, 8, 30, tzinfo=timezone.utc).timestamp() * 1000)
     assert data[10] == 0  # priority
-    assert struct.unpack('>iiHHBH', data[11:26]) == (1512099000, -338651430, 0, 0, 0, 0)
+    assert struct.unpack('>iiHHBH', data[11:26]) == (1512099000, -338651430, 0, 0, 3, 0)
     assert data[26:-1] == bytes(io_size)
     assert int.from_bytes(packet[-4:], 'big') == crc16(data)
     # Independently published Teltonika sample verifies CRC algorithm/init.
@@ -43,6 +43,35 @@ def enable(bridge, **changes):
     cfg.update(enabled=True, host='127.0.0.1', port=5027, codec='8E')
     cfg.update(changes)
     bridge.save_config(cfg)
+
+
+@pytest.mark.parametrize('codec', ['8', '8E'])
+def test_legacy_queue_uses_three_satellites_without_requeue(tmp_path, monkeypatch, codec):
+    import teltonika
+    import hashlib
+    import json
+    bridge = Bridge(tmp_path)
+    enable(bridge, codec=codec)
+    packet = encode_packet(LOCATION, codec)
+    # Construct the packet and fingerprint used before the compatibility update.
+    data = bytearray(packet[8:-4])
+    data[23] = 0
+    legacy = packet[:8] + data + struct.pack('>I', crc16(data))
+    imei = virtual_imei('tag-1')
+    fingerprint = hashlib.sha256(json.dumps(['127.0.0.1', 5027, imei, 'tag-1']).encode() + legacy).hexdigest()
+    with bridge.db() as db:
+        db.execute('INSERT INTO queue(fingerprint,host,port,imei,packet) VALUES(?,?,?,?,?)',
+                   (fingerprint, '127.0.0.1', 5027, imei, legacy))
+    bridge.enqueue(DEVICES)
+    assert bridge.status()['pending'] == 1
+    sent = []
+    monkeypatch.setattr(teltonika, 'send_record', lambda *args: sent.append(args))
+    assert bridge.dispatch_one()
+    assert sent == [('127.0.0.1', 5027, imei, packet)]
+    bridge = Bridge(tmp_path)
+    bridge.enqueue(DEVICES)
+    assert bridge.status()['pending'] == 0
+    assert bridge.status()['sent'] == 1
 
 
 def test_config_and_stable_ids(tmp_path):
