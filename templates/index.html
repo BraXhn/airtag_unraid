@@ -12,4 +12,13 @@
 <section class="workspace"><div class="mapbar"><div><h2>Senast kända platser</h2><small id="updated">Ingen hämtning ännu</small></div><button id="fit">Visa alla</button></div><div id="map" aria-label="Karta över föremål"></div>
 <section class="dialog"><div class="dialoghead"><h2>Inloggningsdialog</h2><button id="stop">Avbryt</button></div><p>Besvara den sista frågan. Alla svar döljs. Tryck Skicka med tomt fält för att välja ett föreslaget standardvärde.</p><pre id="output" aria-live="polite">Starta med Anslut Apple-konto.</pre>
 <form id="answer"><label for="value">Svar till den aktuella frågan</label><div class="inputrow"><input id="value" type="password" autocomplete="off" maxlength="1024" placeholder="Ditt svar"><button>Skicka</button></div></form><p id="error" role="alert"></p></section>
+<section class="dialog"><h2>Skicka positioner till egen server</h2>
+<p>Välj Teltonika Codec 8 eller 8E över TCP. Varje föremål får ett virtuellt ID som ska registreras i din server. Nya positioner skickas efter Hämta positioner; Apple hämtas inte automatiskt.</p>
+<form id="forwarding"><label><input type="checkbox" id="forward-enabled"> Aktivera TCP-vidarebefordran</label>
+<div class="forward-fields"><label>Serveradress<input id="forward-host" maxlength="253" placeholder="192.168.1.50" autocomplete="off"></label>
+<label>TCP-port<input id="forward-port" type="number" min="1" max="65535" value="5027" required></label>
+<label>Protokoll<select id="forward-codec"><option value="8E">Codec 8E</option><option value="8">Codec 8</option></select></label></div>
+<div id="forward-tags"></div><button id="forward-save">Spara inställningar</button></form>
+<p id="forward-status" aria-live="polite"></p><p id="forward-error" role="alert"></p>
+<p>Höjd, riktning, satelliter och hastighet skickas som 0 (saknas). Servern måste acceptera positioner utan satellitfix. TCP skickas utan kryptering. Sparade köposter behåller mottagare och ID vid inställningsändring; avaktivering pausar kön. En pågående sändning kan redan vara på väg.</p></section>
 </section></main><footer>Kartbilder © OpenStreetMap-bidragsgivare · Positionerna är rapporterade platser, inte kontinuerlig GPS-spårning.</footer></body></html>
