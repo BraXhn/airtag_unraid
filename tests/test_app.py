@@ -70,6 +70,17 @@ def test_forwarding_settings_require_auth_and_validate(module):
     assert client.post('/api/forwarding', headers=no_csrf, json=cfg).status_code == 403
 
 
+def test_default_actions_use_linux_backend(module, monkeypatch):
+    commands=[]
+    monkeypatch.delenv('FINDMY_BACKEND', raising=False)
+    monkeypatch.setattr(module.job,'start',lambda argv:commands.append(argv) or True)
+    client=module.app.test_client()
+    for action, expected in [('export','--export'),('locations',None),('relogin','--relogin')]:
+        assert client.post('/api/start',headers=auth(),json={'action':action}).status_code==200
+        assert commands[-1][1].endswith('/mac_worker.py')
+        assert commands[-1][2:]==([expected] if expected else [])
+
+
 def test_pty_input_is_hidden_and_single_job(module):
     code = "import getpass; value=getpass.getpass('Password: '); print('received '+str(len(value)))"
     assert module.job.start([sys.executable, '-c', code])
