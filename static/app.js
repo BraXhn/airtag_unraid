@@ -42,10 +42,39 @@ async function poll(){
     $('status').textContent=s.running?'Åtgärd pågår':s.exit_code===0?'Åtgärd klar':s.exit_code!==null?'Åtgärden avslutades':s.has_keys?'Föremål anslutna':'Inte ansluten';
     document.querySelectorAll('[data-action]').forEach(b=>b.disabled=s.running);
     $('value').disabled=!s.running;$('answer').querySelector('button').disabled=!s.running;
-    wasRunning=s.running;render(await api('/api/locations'));
+    wasRunning=s.running;render(await api('/api/locations'));await refreshForwarding();
   }catch(e){$('error').textContent=e.message;}finally{busy=false;}
 }
 document.querySelectorAll('[data-action]').forEach(b=>b.onclick=async()=>{try{$('error').textContent='';await api('/api/start',{action:b.dataset.action});await poll();$('value').focus();}catch(e){$('error').textContent=e.message;}});
 $('answer').onsubmit=async e=>{e.preventDefault();const value=$('value').value;$('value').value='';try{await api('/api/input',{value});$('error').textContent='';}catch(e){$('error').textContent=e.message;}};
 $('stop').onclick=async()=>{try{await api('/api/stop',{});}catch(e){$('error').textContent=e.message;}};
+let forwardingLoaded=false, forwardingDirty=false, forwardingTags=[];
+function renderForwarding(cfg){
+  $('forward-enabled').checked=cfg.enabled;$('forward-host').value=cfg.host;
+  $('forward-port').value=cfg.port;$('forward-codec').value=cfg.codec;
+  forwardingTags=cfg.tags;$('forward-tags').replaceChildren();
+  cfg.tags.forEach(tag=>{
+    const label=document.createElement('label');label.textContent=tag.name+' · virtuellt ID';
+    const input=document.createElement('input');input.value=tag.imei;input.inputMode='numeric';
+    input.pattern='[0-9]{15}';input.minLength=15;input.maxLength=15;input.required=true;
+    input.dataset.identifier=tag.identifier;label.append(input);$('forward-tags').append(label);
+  });
+}
+async function refreshForwarding(){
+  const data=await api('/api/forwarding'), s=data.status;
+  // Preserve unsaved edits while polling delivery state.
+  const changed=JSON.stringify(data.config.tags.map(t=>t.identifier))!==JSON.stringify(forwardingTags.map(t=>t.identifier));
+  if(!forwardingDirty&&(!forwardingLoaded||changed)){renderForwarding(data.config);forwardingLoaded=true;}
+  $('forward-status').textContent=(data.config.enabled?'Aktiverad':'Pausad')+' · '+s.pending+' i kö · '+s.sent+' kvitterade'+(s.last_sent?' · Senast '+date(s.last_sent*1000):'')+(s.error?' · '+s.error:'');
+}
+$('forwarding').addEventListener('input',()=>{forwardingDirty=true;});
+$('forwarding').onsubmit=async e=>{
+  e.preventDefault();$('forward-error').textContent='';$('forward-save').disabled=true;
+  try{
+    const tags=Array.from($('forward-tags').querySelectorAll('input')).map(input=>({identifier:input.dataset.identifier,imei:input.value}));
+    await api('/api/forwarding',{enabled:$('forward-enabled').checked,host:$('forward-host').value.trim(),port:Number($('forward-port').value),codec:$('forward-codec').value,tags});
+    forwardingDirty=false;forwardingLoaded=false;await refreshForwarding();
+    $('forward-error').textContent='Inställningarna sparades.';
+  }catch(e){$('forward-error').textContent=e.message;}finally{$('forward-save').disabled=false;}
+};
 $('fit').onclick=fit;poll();setInterval(poll,2000);
