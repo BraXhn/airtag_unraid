@@ -72,7 +72,7 @@ def test_default_actions_use_linux_backend(module, monkeypatch):
     monkeypatch.delenv('FINDMY_BACKEND', raising=False)
     monkeypatch.setattr(module.job,'start',lambda argv:commands.append(argv) or True)
     client=module.app.test_client()
-    for action, expected in [('export','--export'),('locations',None),('relogin','--relogin')]:
+    for action, expected in [('export','--export'),('locations',None),('relogin','--relogin'),('refresh-devices','--refresh-inventory')]:
         assert client.post('/api/start',headers=auth(),json={'action':action}).status_code==200
         assert commands[-1][1].endswith('/mac_worker.py')
         assert commands[-1][2:]==([expected] if expected else [])
