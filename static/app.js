@@ -111,6 +111,8 @@ function selectionSummary(){
 }
 async function refreshSelection(){
   const data=await api('/api/device-selection');
+  const inventory=data.inventory||{};
+  $('inventory-status').textContent=(inventory.checked_at?'Listan kontrollerad '+date(inventory.checked_at*1000)+' · '+inventory.imported+' importerade från Apple · '+inventory.available+' tillgängliga i appen'+(inventory.pages?' · '+inventory.pages+' sidor':''):'Ingen ny kontroll av föremålslistan ännu.')+(inventory.partial?' · Importen är delvis ofullständig: '+inventory.unreadable_records+' poster kunde inte dekrypteras och '+inventory.invalid_accessories+' föremål kunde inte konverteras.':'')+(inventory.retained?' · '+inventory.retained+' tidigare föremål saknades i importen och behölls.':'')+(inventory.failed?' · Senaste uppdateringen misslyckades; den tidigare listan behölls.':'')+(!inventory.refresh_available?' · Välj Uppdatera föremålslista för att aktivera upptäckt av nya föremål.':'');
   const signature=JSON.stringify(data);
   if(!selectionDirty&&(!selectionLoaded||signature!==selectionSignature)){
     $('select-all').checked=data.all_devices;$('selection-devices').replaceChildren();
