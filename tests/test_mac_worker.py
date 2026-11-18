@@ -251,3 +251,48 @@ def test_export_returns_device_list_before_any_position_query(state, monkeypatch
     monkeypatch.setattr(worker,'save_session',lambda account:None)
     assert asyncio.run(worker.run())==0
     assert not (state/'locations.json').exists()
+
+
+@pytest.mark.parametrize('flags',[[],['--non-interactive'],['--refresh-inventory']])
+def test_inventory_is_refreshed_before_selection_and_positions(state,monkeypatch,flags):
+    from findmy import FindMyAccessory
+    monkeypatch.setattr(sys,'argv',['mac_worker.py',*flags])
+    class Tag:
+        model='AirTag'
+        def __init__(self,identifier):self.identifier=self.name=identifier
+        def to_json(self):return {'identifier':self.identifier}
+    first,second=Tag('one'),Tag('two')
+    worker.KEYS.write_bytes(worker.cipher().encrypt(b'[{"identifier":"one"}]'))
+    worker.SESSION.write_bytes(b'test-session')
+    worker.MACHINE.mkdir();(worker.MACHINE/'identity.json').write_text('{}')
+    worker.COREADI.write_bytes(b'test-library')
+    marker=state/'inventory-zone-keys.enc';marker.write_bytes(b'encrypted-placeholder')
+    calls=[]
+    class Account:
+        async def close(self):calls.append('close-account')
+    account=Account()
+    class Store:
+        def __init__(self,a):assert a is account
+        async def close(self):calls.append('close-store')
+    class Catalogue:
+        def __init__(self,data):self.keys=marker
+        def due(self,automatic=False):
+            assert automatic==('--non-interactive' in flags)
+            return True
+        async def refresh(self,store):calls.append('refresh');return [first,second]
+    async def authenticate(*args):return account
+    async def fetch(account,selected,all_accessories):
+        assert selected==[first,second] and all_accessories==[first,second]
+        calls.append('positions');return 0
+    monkeypatch.setattr(worker,'Inventory',Catalogue)
+    monkeypatch.setattr(worker,'authenticate',authenticate)
+    monkeypatch.setattr(worker,'load_modules',lambda:(SimpleNamespace(guard=lambda:None),None,None,None))
+    monkeypatch.setattr(worker,'ensure_library',lambda:None)
+    monkeypatch.setattr(worker,'save_session',lambda account:None)
+    monkeypatch.setattr(worker,'fetch_positions',fetch)
+    monkeypatch.setattr(FindMyAccessory,'from_json',lambda value:first)
+    monkeypatch.setattr('findmy.cloudkit.AsyncBeaconStore',Store)
+    monkeypatch.setitem(sys.modules,'tag_keys',SimpleNamespace(for_cloudkit=lambda a:a))
+    assert asyncio.run(worker.run())==0
+    assert calls==(['refresh','close-store','close-account'] if '--refresh-inventory' in flags
+                   else ['refresh','close-store','positions','close-account'])
