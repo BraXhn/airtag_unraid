@@ -22,6 +22,7 @@ from pathlib import Path
 from storage import atomic_write, cipher
 from device_selection import DeviceSelection, accessory_id
 from teltonika import Bridge
+from inventory import Inventory, InventoryError
 
 os.umask(0o077)
 logging.disable(logging.CRITICAL)
@@ -248,11 +249,12 @@ async def recover_accessories(account):
         keys = await session.pcs_keys(peer)
         store = AsyncBeaconStore(ck_account)
         try:
-            accessories = await store.fetch_accessories(keys)
+            inventory = Inventory(DATA)
+            zone_keys = await store.zone_keys(keys)
+            accessories = await inventory.refresh(store, zone_keys)
         finally:
             await store.close()
         # Deliberately no keychain join/enrolment, deletion or terms acceptance.
-        atomic_write(KEYS, cipher().encrypt(json.dumps([a.to_json() for a in accessories]).encode()))
         return accessories
     finally:
         await session.close()
@@ -352,14 +354,28 @@ async def run():
     account = None
     try:
         account = await authenticate(AsyncAppleAccount, LoginState, cooldown, MacAnisette, Provider, Resyncer)
-        if '--export' in sys.argv or not KEYS.exists():
+        inventory = Inventory(DATA)
+        refresh_only = '--refresh-inventory' in sys.argv
+        if '--export' in sys.argv or not KEYS.exists() or (refresh_only and not inventory.keys.exists()):
             accessories = await recover_accessories(account)
         else:
             accessories = [FindMyAccessory.from_json(item) for item in json.loads(cipher().decrypt(KEYS.read_bytes()))]
+            if refresh_only or inventory.due(automatic='--non-interactive' in sys.argv):
+                from findmy.cloudkit import AsyncBeaconStore
+                from tag_keys import for_cloudkit
+                print('Uppdaterar föremålslistan från Apple innan positionssökningen.', flush=True)
+                store = AsyncBeaconStore(for_cloudkit(account))
+                try:
+                    accessories = await inventory.refresh(store)
+                finally:
+                    await store.close()
+            elif not inventory.keys.exists():
+                print('Använder en tidigare importerad föremålslista. Välj Uppdatera föremålslista '
+                      'en gång för att aktivera upptäckt av nya föremål.', flush=True)
         if not accessories:
             print('Inga exporterbara Hitta-föremål hittades i den dekrypterade nyckelringen.', flush=True)
             return 2
-        if '--export' in sys.argv:
+        if '--export' in sys.argv or refresh_only:
             save_session(account)
             record_session_status(login_required=False)
             print(f'Klart. {len(accessories)} föremål tillgängliga. Välj vilka som ska hämtas i appen, '
@@ -392,7 +408,7 @@ def main():
             return 10
         if marker.exists() and time.time() - marker.stat().st_mtime < 45 * 60:
             print('Apple begränsar anropen (429). Vänta minst 45 minuter innan nästa försök.', flush=True)
-        elif isinstance(error, UserError):
+        elif isinstance(error, (UserError, InventoryError)):
             print(str(error), flush=True)
         else:
             print(f'Linux-inloggning eller hämtning misslyckades ({type(error).__name__}). '
