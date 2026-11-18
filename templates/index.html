@@ -12,6 +12,8 @@
 <h2>Anslut ditt Apple-konto</h2><p>Hämta dina föremål och visa deras senast rapporterade plats. Enheter och inställningar tillhör ditt inloggade appkonto.</p>
 <div class="step"><b>1</b><div><h3>Hämta föremål</h3><p>Linux-inloggning utan Mac. Första gången hämtas ett Apple-bibliotek; därefter loggar du in och låser upp föremålsnycklar med en tidigare enhets skärmlåskod. Följ dialogen nedan och välj sedan vilka föremål som ska hämtas.</p><button data-action="export">Anslut Apple-konto</button></div></div>
 <details open><summary>Välj föremål att hämta</summary><p>Urvalet används vid både manuell och automatisk sökning. Spara före nästa sökning. En redan startad körning fortsätter med sitt tidigare urval.</p>
+<button data-action="refresh-devices">Uppdatera föremålslista</button><p id="inventory-status" aria-live="polite"></p>
+<p>Första uppdateringen efter en äldre installation kan fråga efter Apple-lösenord och en tidigare enhets skärmlåskod. Därefter upptäcks nya föremål vid manuell positionssökning och högst en gång per timme vid automatisk sökning.</p>
 <form id="device-selection"><label><input type="checkbox" id="select-all"> Alla föremål, även nytillkomna</label><div id="selection-devices"></div><button id="selection-save">Spara urval</button></form>
 <p id="selection-status" aria-live="polite"></p><p id="selection-error" role="alert"></p></details>
 <div class="step"><b>2</b><div><h3>Visa positioner</h3><p>Använder den sparade Linux-sessionen. Välj Ny positionsinloggning om Apple kräver ny verifiering.</p><button data-action="locations">Hämta positioner</button></div></div>
