@@ -17,6 +17,7 @@ from teltonika import Bridge
 from scheduler import AutoRefresh
 from device_selection import DeviceSelection
 from accounts import Accounts
+from inventory import Inventory
 
 os.umask(0o077)
 DATA = Path(os.environ.get('DATA_DIR', '/data'))
@@ -364,12 +365,14 @@ def state():
 @app.post('/api/start')
 def start():
     action = (request.get_json(silent=True) or {}).get('action')
-    if action in ('export', 'locations', 'relogin') and os.environ.get('FINDMY_BACKEND', 'macadi') == 'macadi':
+    if action in ('export', 'locations', 'relogin', 'refresh-devices') and os.environ.get('FINDMY_BACKEND', 'macadi') == 'macadi':
         argv = [sys.executable, str(ROOT / 'mac_worker.py')]
         if action == 'export':
             argv.append('--export')
         elif action == 'relogin':
             argv.append('--relogin')
+        elif action == 'refresh-devices':
+            argv.append('--refresh-inventory')
     elif action == 'export':
         folder = g.workspace.data / 'export'
         folder.mkdir(exist_ok=True)
@@ -455,7 +458,9 @@ def save_refresh():
 @app.get('/api/device-selection')
 def selection_state():
     try:
-        return g.workspace.device_selection.state()
+        result = g.workspace.device_selection.state()
+        result['inventory'] = Inventory(g.workspace.data).state()
+        return result
     except Exception:
         return {'all_devices': True, 'identifiers': [], 'devices': [],
                 'error': 'Föremålslistan kunde inte läsas. Anslut Apple-kontot i appen igen.'}
