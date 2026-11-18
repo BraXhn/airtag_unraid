@@ -1,5 +1,10 @@
 # AirTag-karta för Unraid
 
+**Nya AirTags saknas?** Välj **Uppdatera föremålslista** i appen en gång efter
+uppdateringen. Därefter kontrollerar positionssökningar även om nya föremål
+lagts till på Apple-kontot. Se [INVENTORY.md](INVENTORY.md) för förberedelse,
+importantal och felsökning.
+
 **Egna användarkonton:** admin kan skapa, pausa och återställa lokala appkonton.
 Varje användare ansluter sitt eget Apple-konto och har egna enheter, karta,
 sökschema och TCP-inställningar. Befintliga admin-data behålls. Se
